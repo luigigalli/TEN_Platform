@@ -3,6 +3,7 @@ import { useServices } from "../hooks/use-services";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,11 +12,11 @@ import {
 } from "@/components/ui/dialog";
 import ServiceBookingForm from "../components/ServiceBookingForm";
 import type { Service } from "@db/schema";
-import { MapPinIcon, CalendarIcon } from "lucide-react";
+import { MapPinIcon } from "lucide-react";
 
 export default function ServicesPage() {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const { services, isLoading } = useServices();
+  const { services, isLoading, error } = useServices();
   const { toast } = useToast();
 
   const handleBookService = (service: Service) => {
@@ -23,7 +24,27 @@ export default function ServicesPage() {
   };
 
   if (isLoading) {
-    return <div>Loading services...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Error loading services: {error.message}</p>
+      </div>
+    );
+  }
+
+  if (!services?.length) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">No services available at the moment.</p>
+      </div>
+    );
   }
 
   return (
@@ -33,7 +54,7 @@ export default function ServicesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {services?.map((service) => (
+        {services.map((service) => (
           <Card key={service.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="text-xl">{service.title}</CardTitle>
