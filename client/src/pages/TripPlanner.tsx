@@ -21,7 +21,7 @@ import TripCollaboration from "../components/TripCollaboration";
 export default function TripPlanner() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
-  const { trips, createTrip } = useTrips();
+  const { trips, createTrip, isLoading } = useTrips();
   const { user } = useUser();
   const { toast } = useToast();
 
@@ -60,8 +60,24 @@ export default function TripPlanner() {
   };
 
   const handleTripClick = (trip: Trip) => {
+    console.log('Trip clicked:', trip);
     setSelectedTrip(trip);
   };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-muted rounded w-48 mb-6"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[1, 2, 3, 4].map((n) => (
+              <div key={n} className="h-48 bg-muted rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -135,7 +151,7 @@ export default function TripPlanner() {
               <div
                 key={trip.id}
                 onClick={() => handleTripClick(trip)}
-                className="cursor-pointer"
+                className="cursor-pointer transition-transform hover:scale-105"
               >
                 <TripCard trip={trip} user={user!} />
               </div>
@@ -144,10 +160,14 @@ export default function TripPlanner() {
         </div>
 
         <div className="lg:col-span-1">
-          {selectedTrip && (
-            <div className="bg-card rounded-lg p-6 shadow-lg">
+          {selectedTrip ? (
+            <div className="bg-card rounded-lg p-6 shadow-lg sticky top-6">
               <h2 className="text-2xl font-semibold mb-6">Trip Collaboration</h2>
               <TripCollaboration trip={selectedTrip} />
+            </div>
+          ) : (
+            <div className="bg-card rounded-lg p-6 shadow-lg text-center text-muted-foreground">
+              Select a trip to view and manage collaboration settings
             </div>
           )}
         </div>
