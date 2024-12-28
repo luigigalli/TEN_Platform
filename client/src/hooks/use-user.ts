@@ -16,6 +16,7 @@ async function handleRequest(
   body?: InsertUser
 ): Promise<RequestResult> {
   try {
+    console.log(`Making ${method} request to ${url}`);
     const response = await fetch(url, {
       method,
       headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -24,6 +25,7 @@ async function handleRequest(
     });
 
     const data = await response.json();
+    console.log(`Response from ${url}:`, data);
 
     if (!response.ok) {
       return { 
@@ -37,6 +39,7 @@ async function handleRequest(
       ...data
     };
   } catch (e: any) {
+    console.error(`Error in ${method} request to ${url}:`, e);
     return { 
       ok: false, 
       message: e.toString() 
@@ -46,20 +49,25 @@ async function handleRequest(
 
 async function fetchUser(): Promise<SelectUser | null> {
   try {
+    console.log('Fetching user data...');
     const response = await fetch("/api/user", {
       credentials: "include",
     });
 
     if (!response.ok) {
       if (response.status === 401) {
+        console.log('User not authenticated');
         return null;
       }
       const data = await response.json();
       throw new Error(data.message || response.statusText);
     }
 
-    return response.json();
+    const userData = await response.json();
+    console.log('User data fetched:', userData);
+    return userData;
   } catch (error: any) {
+    console.error('Error fetching user:', error);
     throw new Error(error.message || "Failed to fetch user");
   }
 }
