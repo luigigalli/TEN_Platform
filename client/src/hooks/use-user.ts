@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { InsertUser, SelectUser } from "@db/schema";
+import { useToast } from "@/hooks/use-toast";
 
 type RequestResult = {
   ok: true;
@@ -74,6 +75,7 @@ async function fetchUser(): Promise<SelectUser | null> {
 
 export function useUser() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: user, error, isLoading } = useQuery<SelectUser | null, Error>({
     queryKey: ["user"],
@@ -84,22 +86,59 @@ export function useUser() {
 
   const loginMutation = useMutation<RequestResult, Error, InsertUser>({
     mutationFn: (userData) => handleRequest("/api/login", "POST", userData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user"] });
+    onSuccess: (result) => {
+      if (result.ok) {
+        queryClient.invalidateQueries({ queryKey: ["user"] });
+        toast({
+          title: "Success",
+          description: result.message || "Logged in successfully!"
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: result.message
+        });
+      }
     },
   });
 
   const logoutMutation = useMutation<RequestResult, Error>({
     mutationFn: () => handleRequest("/api/logout", "POST"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user"] });
+    onSuccess: (result) => {
+      if (result.ok) {
+        queryClient.setQueryData(["user"], null);
+        queryClient.invalidateQueries({ queryKey: ["user"] });
+        toast({
+          title: "Success",
+          description: result.message || "Logged out successfully!"
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Logout Failed",
+          description: result.message
+        });
+      }
     },
   });
 
   const registerMutation = useMutation<RequestResult, Error, InsertUser>({
     mutationFn: (userData) => handleRequest("/api/register", "POST", userData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user"] });
+    onSuccess: (result) => {
+      if (result.ok) {
+        queryClient.invalidateQueries({ queryKey: ["user"] });
+        toast({
+          title: "Success",
+          description: result.message || "Account created successfully!"
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Registration Failed",
+          description: result.message
+        });
+      }
     },
   });
 
