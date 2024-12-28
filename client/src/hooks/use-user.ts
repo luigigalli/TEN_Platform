@@ -23,36 +23,45 @@ async function handleRequest(
       credentials: "include",
     });
 
-    if (!response.ok) {
-      if (response.status >= 500) {
-        return { ok: false, message: response.statusText };
-      }
+    const data = await response.json();
 
-      const message = await response.text();
-      return { ok: false, message };
+    if (!response.ok) {
+      return { 
+        ok: false, 
+        message: data.message || response.statusText 
+      };
     }
 
-    const data = await response.json();
-    return { ok: true, ...data };
+    return { 
+      ok: true,
+      ...data
+    };
   } catch (e: any) {
-    return { ok: false, message: e.toString() };
+    return { 
+      ok: false, 
+      message: e.toString() 
+    };
   }
 }
 
 async function fetchUser(): Promise<SelectUser | null> {
-  const response = await fetch("/api/user", {
-    credentials: "include",
-  });
+  try {
+    const response = await fetch("/api/user", {
+      credentials: "include",
+    });
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      return null;
+    if (!response.ok) {
+      if (response.status === 401) {
+        return null;
+      }
+      const data = await response.json();
+      throw new Error(data.message || response.statusText);
     }
 
-    throw new Error(await response.text());
+    return response.json();
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to fetch user");
   }
-
-  return response.json();
 }
 
 export function useUser() {
