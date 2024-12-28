@@ -8,14 +8,14 @@ import {
   posts, 
   services, 
   bookings, 
-  expertMessages,
+  messages,
   insertTripSchema, 
   insertBookingSchema, 
   insertServiceSchema,
-  insertExpertMessageSchema,
+  insertMessageSchema,
   type Trip
 } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { createPaymentIntent, confirmPayment } from "./payment";
 
 export function registerRoutes(app: Express): Server {
@@ -31,6 +31,103 @@ export function registerRoutes(app: Express): Server {
   });
 
   setupAuth(app);
+
+  // Messages endpoints
+  app.get("/api/messages/:conversationId?", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const { conversationId } = req.params;
+      const userId = (req.user as any).id;
+
+      const userMessages = await db
+        .select()
+        .from(messages)
+        .where(
+          conversationId
+            ? eq(messages.conversationId, conversationId)
+            : or(
+                eq(messages.senderId, userId),
+                eq(messages.receiverId, userId)
+              )
+        );
+
+      res.json(userMessages);
+    } catch (error: any) {
+      console.error('Messages fetch error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.post("/api/messages", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      console.log('Processing message:', req.body);
+      const result = insertMessageSchema.safeParse({
+        ...req.body,
+        senderId: (req.user as any).id,
+      });
+
+      if (!result.success) {
+        console.error('Message validation error:', result.error);
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map((i: any) => i.message).join(", ")
+        );
+      }
+
+      const [message] = await db
+        .insert(messages)
+        .values(result.data)
+        .returning();
+
+      console.log('Message created successfully:', message);
+      res.json(message);
+    } catch (error: any) {
+      console.error('Message creation error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.post("/api/messages/:messageId/read", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const { messageId } = req.params;
+      const userId = (req.user as any).id;
+
+      const [message] = await db
+        .select()
+        .from(messages)
+        .where(eq(messages.id, parseInt(messageId)))
+        .limit(1);
+
+      if (!message) {
+        return res.status(404).send("Message not found");
+      }
+
+      if (message.receiverId !== userId) {
+        return res.status(403).send("Not authorized to mark this message as read");
+      }
+
+      const [updatedMessage] = await db
+        .update(messages)
+        .set({ status: "read" })
+        .where(eq(messages.id, parseInt(messageId)))
+        .returning();
+
+      res.json(updatedMessage);
+    } catch (error: any) {
+      console.error('Message status update error:', error);
+      res.status(500).send(error.message);
+    }
+  });
 
   // Services endpoints
   app.get("/api/services", async (_req, res) => {

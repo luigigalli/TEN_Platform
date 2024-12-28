@@ -63,12 +63,16 @@ export const posts = pgTable("posts", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
-export const expertMessages = pgTable("expert_messages", {
+export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
-  expertId: integer("expert_id").references(() => users.id),
-  userId: integer("user_id").references(() => users.id),
+  senderId: integer("sender_id").references(() => users.id),
+  receiverId: integer("receiver_id").references(() => users.id),
+  conversationId: text("conversation_id").notNull(),
   message: text("message").notNull(),
   status: text("status").notNull().default("unread"),
+  messageType: text("message_type").notNull(),
+  contextId: integer("context_id"),
+  contextType: text("context_type"),
   createdAt: timestamp("created_at").defaultNow()
 });
 
@@ -97,7 +101,8 @@ export const insertPostSchema = createInsertSchema(posts);
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 
-export const insertExpertMessageSchema = createInsertSchema(expertMessages);
+export const insertMessageSchema = createInsertSchema(messages);
+export const selectMessageSchema = createSelectSchema(messages);
 
 export type User = typeof users.$inferSelect;
 export type Trip = typeof trips.$inferSelect;
@@ -109,5 +114,5 @@ export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
 export type InsertService = typeof services.$inferInsert;
 export type InsertBooking = z.infer<typeof bookingValidationSchema>;
-export type ExpertMessage = typeof expertMessages.$inferSelect;
-export type InsertExpertMessage = typeof expertMessages.$inferInsert;
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = typeof messages.$inferInsert;
