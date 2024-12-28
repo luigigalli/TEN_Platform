@@ -66,9 +66,14 @@ export const trips = pgTable("trips", {
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
   isPrivate: boolean("is_private").default(false),
-  members: json("members").default([]),
+  collaborationSettings: json("collaboration_settings").default({
+    canInvite: false,
+    canEdit: false,
+    canComment: true
+  }),
   itinerary: json("itinerary").default([]),
-  createdAt: timestamp("created_at").defaultNow()
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
 
 export const posts = pgTable("posts", {
@@ -93,6 +98,26 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+export const tripMembers = pgTable("trip_members", {
+  id: serial("id").primaryKey(),
+  tripId: integer("trip_id").references(() => trips.id),
+  userId: integer("user_id").references(() => users.id),
+  role: text("role").notNull().default("member"), // owner, member, viewer
+  status: text("status").notNull().default("pending"), // pending, accepted, declined
+  joinedAt: timestamp("joined_at").defaultNow(),
+  lastActivity: timestamp("last_activity").defaultNow()
+});
+
+export const tripActivities = pgTable("trip_activities", {
+  id: serial("id").primaryKey(),
+  tripId: integer("trip_id").references(() => trips.id),
+  createdBy: integer("created_by").references(() => users.id),
+  type: text("type").notNull(), // suggestion, comment, update
+  content: text("content").notNull(),
+  metadata: json("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
 // Add relations
 export const messagesRelations = relations(messages, ({ one }) => ({
   sender: one(users, {
@@ -110,9 +135,45 @@ export const usersRelations = relations(users, ({ many }) => ({
   receivedMessages: many(messages, { relationName: "receiver" }),
 }));
 
+export const tripsRelations = relations(trips, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [trips.userId],
+    references: [users.id],
+  }),
+  members: many(tripMembers),
+  activities: many(tripActivities)
+}));
+
+export const tripMembersRelations = relations(tripMembers, ({ one }) => ({
+  trip: one(trips, {
+    fields: [tripMembers.tripId],
+    references: [trips.id],
+  }),
+  user: one(users, {
+    fields: [tripMembers.userId],
+    references: [users.id],
+  })
+}));
+
+export const tripActivitiesRelations = relations(tripActivities, ({ one }) => ({
+  trip: one(trips, {
+    fields: [tripActivities.tripId],
+    references: [trips.id],
+  }),
+  creator: one(users, {
+    fields: [tripActivities.createdBy],
+    references: [users.id],
+  })
+}));
+
 export const insertTripSchema = createInsertSchema(trips, {
   startDate: z.string().transform((str) => str ? new Date(str) : null),
   endDate: z.string().transform((str) => str ? new Date(str) : null),
+  collaborationSettings: z.object({
+    canInvite: z.boolean(),
+    canEdit: z.boolean(),
+    canComment: z.boolean()
+  }).optional()
 });
 
 export const insertServiceSchema = createInsertSchema(services);
@@ -146,6 +207,10 @@ export const insertMessageSchema = createInsertSchema(messages, {
 
 export const selectMessageSchema = createSelectSchema(messages);
 
+export const insertTripMemberSchema = createInsertSchema(tripMembers);
+export const insertTripActivitySchema = createInsertSchema(tripActivities);
+
+
 export type User = typeof users.$inferSelect;
 export type Trip = typeof trips.$inferSelect;
 export type Post = typeof posts.$inferSelect;
@@ -156,3 +221,7 @@ export type InsertService = typeof services.$inferInsert;
 export type InsertBooking = z.infer<typeof bookingValidationSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = typeof messages.$inferInsert;
+export type TripMember = typeof tripMembers.$inferSelect;
+export type InsertTripMember = typeof tripMembers.$inferInsert;
+export type TripActivity = typeof tripActivities.$inferSelect;
+export type InsertTripActivity = typeof tripActivities.$inferInsert;

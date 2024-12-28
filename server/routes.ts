@@ -9,10 +9,14 @@ import {
   services, 
   bookings, 
   messages,
+  tripMembers,
+  tripActivities,
   insertTripSchema, 
   insertBookingSchema, 
   insertServiceSchema,
   insertMessageSchema,
+  insertTripMemberSchema,
+  insertTripActivitySchema,
   type Trip,
   type Message,
   type InsertMessage
@@ -33,6 +37,173 @@ export function registerRoutes(app: Express): Server {
   });
 
   setupAuth(app);
+
+  // Trip collaboration endpoints
+  app.get("/api/trips/:tripId/members", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const tripId = parseInt(req.params.tripId);
+      const members = await db
+        .select()
+        .from(tripMembers)
+        .where(eq(tripMembers.tripId, tripId))
+        .orderBy(desc(tripMembers.joinedAt));
+
+      res.json(members);
+    } catch (error: any) {
+      console.error('Trip members fetch error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.post("/api/trips/:tripId/members", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const tripId = parseInt(req.params.tripId);
+      const { email } = req.body;
+
+      // Check if the user has permission to invite
+      const [trip] = await db
+        .select()
+        .from(trips)
+        .where(eq(trips.id, tripId))
+        .limit(1);
+
+      if (!trip) {
+        return res.status(404).send("Trip not found");
+      }
+
+      const isOwner = trip.userId === (req.user as any).id;
+      const canInvite = isOwner || trip.collaborationSettings.canInvite;
+
+      if (!canInvite) {
+        return res.status(403).send("You don't have permission to invite members");
+      }
+
+      // Find user by email
+      const [invitedUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!invitedUser) {
+        return res.status(404).send("User not found");
+      }
+
+      // Check if user is already a member
+      const [existingMember] = await db
+        .select()
+        .from(tripMembers)
+        .where(
+          and(
+            eq(tripMembers.tripId, tripId),
+            eq(tripMembers.userId, invitedUser.id)
+          )
+        )
+        .limit(1);
+
+      if (existingMember) {
+        return res.status(400).send("User is already a member of this trip");
+      }
+
+      // Create trip member
+      const [member] = await db
+        .insert(tripMembers)
+        .values({
+          tripId,
+          userId: invitedUser.id,
+          role: "member",
+          status: "pending"
+        })
+        .returning();
+
+      // Create activity
+      await db.insert(tripActivities).values({
+        tripId,
+        createdBy: (req.user as any).id,
+        type: "member_invited",
+        content: `invited ${invitedUser.username} to join the trip`
+      });
+
+      res.json(member);
+    } catch (error: any) {
+      console.error('Trip member creation error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.get("/api/trips/:tripId/activities", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const tripId = parseInt(req.params.tripId);
+      const activities = await db
+        .select()
+        .from(tripActivities)
+        .where(eq(tripActivities.tripId, tripId))
+        .orderBy(desc(tripActivities.createdAt));
+
+      res.json(activities);
+    } catch (error: any) {
+      console.error('Trip activities fetch error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  app.patch("/api/trips/:tripId/settings", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const tripId = parseInt(req.params.tripId);
+      const { collaborationSettings } = req.body;
+
+      // Verify ownership
+      const [trip] = await db
+        .select()
+        .from(trips)
+        .where(eq(trips.id, tripId))
+        .limit(1);
+
+      if (!trip) {
+        return res.status(404).send("Trip not found");
+      }
+
+      if (trip.userId !== (req.user as any).id) {
+        return res.status(403).send("Only the trip owner can modify settings");
+      }
+
+      // Update settings
+      const [updatedTrip] = await db
+        .update(trips)
+        .set({ collaborationSettings })
+        .where(eq(trips.id, tripId))
+        .returning();
+
+      // Create activity
+      await db.insert(tripActivities).values({
+        tripId,
+        createdBy: (req.user as any).id,
+        type: "settings_updated",
+        content: "updated trip collaboration settings"
+      });
+
+      res.json(updatedTrip);
+    } catch (error: any) {
+      console.error('Trip settings update error:', error);
+      res.status(500).send(error.message);
+    }
+  });
 
   // Messages endpoints
   app.get("/api/messages/:conversationId?", async (req, res) => {
