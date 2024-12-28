@@ -1,11 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Trip } from "@db/schema";
+import { useToast } from "@/hooks/use-toast";
 
 export function useTrips() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
-  const { data: trips, isLoading } = useQuery<Trip[]>({
+  const { data: trips, isLoading, error } = useQuery<Trip[]>({
     queryKey: ["/api/trips"],
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error fetching trips",
+        description: error.message
+      });
+    }
   });
 
   const createTrip = useMutation({
@@ -25,7 +34,18 @@ export function useTrips() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trips"] });
+      toast({
+        title: "Success",
+        description: "Trip created successfully!"
+      });
     },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error creating trip",
+        description: error.message
+      });
+    }
   });
 
   const inviteMember = useMutation({
@@ -45,7 +65,18 @@ export function useTrips() {
     },
     onSuccess: (_, { tripId }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/trips", tripId, "members"] });
+      toast({
+        title: "Success",
+        description: "Member invited successfully!"
+      });
     },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error inviting member",
+        description: error.message
+      });
+    }
   });
 
   const updateCollaborationSettings = useMutation({
@@ -71,12 +102,24 @@ export function useTrips() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trips"] });
+      toast({
+        title: "Success",
+        description: "Collaboration settings updated successfully!"
+      });
     },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error updating collaboration settings",
+        description: error.message
+      });
+    }
   });
 
   return {
-    trips,
+    trips: trips || [],
     isLoading,
+    error,
     createTrip: createTrip.mutateAsync,
     inviteMember: inviteMember.mutateAsync,
     updateCollaborationSettings: updateCollaborationSettings.mutateAsync,
