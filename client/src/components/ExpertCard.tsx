@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { useMessages } from "../hooks/use-messages";
 
 interface Expert {
   id: number;
@@ -30,23 +31,16 @@ export default function ExpertCard({ expert }: ExpertCardProps) {
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const { toast } = useToast();
+  const { sendMessage } = useMessages();
 
   const handleContact = async () => {
     try {
       setIsSending(true);
-      const response = await fetch("/api/experts/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          expertId: expert.id,
-          message,
-        }),
-        credentials: "include",
+      await sendMessage({
+        receiverId: expert.id,
+        message,
+        messageType: 'expert_inquiry',
       });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
 
       toast({
         title: "Success",
