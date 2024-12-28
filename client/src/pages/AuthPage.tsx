@@ -12,13 +12,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 const authSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  email: z.string().email("Invalid email").optional(),
+  email: z.string().email("Invalid email"),
 });
 
 type AuthFormData = z.infer<typeof authSchema>;
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, register } = useUser();
   const { toast } = useToast();
 
@@ -33,6 +34,7 @@ export default function AuthPage() {
 
   const onSubmit = async (data: AuthFormData) => {
     try {
+      setIsSubmitting(true);
       const result = await (isLogin ? login(data) : register(data));
       if (!result.ok) {
         toast({
@@ -47,6 +49,8 @@ export default function AuthPage() {
         title: "Error",
         description: error.message,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -63,25 +67,25 @@ export default function AuthPage() {
               <Input
                 id="username"
                 {...form.register("username")}
+                disabled={isSubmitting}
               />
               {form.formState.errors.username && (
                 <p className="text-sm text-destructive">{form.formState.errors.username.message}</p>
               )}
             </div>
 
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  {...form.register("email")}
-                />
-                {form.formState.errors.email && (
-                  <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
-                )}
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                {...form.register("email")}
+                disabled={isSubmitting}
+              />
+              {form.formState.errors.email && (
+                <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+              )}
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -89,14 +93,15 @@ export default function AuthPage() {
                 id="password"
                 type="password"
                 {...form.register("password")}
+                disabled={isSubmitting}
               />
               {form.formState.errors.password && (
                 <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
               )}
             </div>
 
-            <Button type="submit" className="w-full">
-              {isLogin ? "Login" : "Register"}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? "Please wait..." : (isLogin ? "Login" : "Register")}
             </Button>
 
             <Button
@@ -104,6 +109,7 @@ export default function AuthPage() {
               variant="ghost"
               className="w-full"
               onClick={() => setIsLogin(!isLogin)}
+              disabled={isSubmitting}
             >
               {isLogin
                 ? "Don't have an account? Register"
