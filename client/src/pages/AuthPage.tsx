@@ -49,47 +49,61 @@ export default function AuthPage() {
   const onSubmit = async (data: LoginFormData | RegisterFormData) => {
     try {
       setIsSubmitting(true);
-      const result = await (isLogin
-        ? login({
-            username: data.username,
-            password: data.password,
-            email: data.username, // Allow login with email
-            role: "user"
-          })
-        : register({
-            username: data.username,
-            password: data.password,
-            email: 'email' in data ? data.email : data.username,
-            role: "user"
-          }));
 
-      if (!result.ok) {
-        // Show error toast with specific messages
-        toast({
-          variant: "destructive",
-          title: isLogin ? "Login Failed" : "Registration Failed",
-          description: result.message === "Invalid username or email" 
-            ? "The username or email you entered doesn't exist"
-            : result.message === "Incorrect password"
-            ? "The password you entered is incorrect"
-            : result.message === "Username already exists"
-            ? "This username is already taken. Please choose another one"
-            : result.message || "An unexpected error occurred",
+      if (isLogin) {
+        const result = await login({
+          username: data.username,
+          password: data.password,
+          email: data.username, // Allow login with email
+          role: "user"
         });
-      } else {
-        // Show success toast
+
+        if (!result.ok) {
+          toast({
+            variant: "destructive",
+            title: "Login Failed",
+            description: result.message === "Invalid username or email" 
+              ? "The username or email you entered doesn't exist"
+              : result.message === "Incorrect password"
+              ? "The password you entered is incorrect"
+              : result.message || "An unexpected error occurred"
+          });
+          return;
+        }
+
         toast({
           title: "Success",
-          description: isLogin 
-            ? "Welcome back!" 
-            : "Account created successfully!",
+          description: "Welcome back!"
+        });
+      } else {
+        const result = await register({
+          username: data.username,
+          password: data.password,
+          email: 'email' in data ? data.email : data.username,
+          role: "user"
+        });
+
+        if (!result.ok) {
+          toast({
+            variant: "destructive",
+            title: "Registration Failed",
+            description: result.message === "Username or email already exists"
+              ? "This username or email is already taken. Please choose another one"
+              : result.message || "An unexpected error occurred"
+          });
+          return;
+        }
+
+        toast({
+          title: "Success",
+          description: "Account created successfully!"
         });
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        description: "An unexpected error occurred. Please try again."
       });
     } finally {
       setIsSubmitting(false);

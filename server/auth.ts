@@ -135,9 +135,10 @@ export function setupAuth(app: Express) {
       if (!result.success) {
         return res
           .status(400)
-          .send(
-            "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-          );
+          .json({
+            ok: false,
+            message: result.error.issues.map((i) => i.message).join(", ")
+          });
       }
 
       const { username, password, email } = result.data;
@@ -150,7 +151,10 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
-        return res.status(400).send("Username or email already exists");
+        return res.status(400).json({
+          ok: false,
+          message: "Username or email already exists"
+        });
       }
 
       const hashedPassword = await crypto.hash(password);
