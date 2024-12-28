@@ -53,25 +53,43 @@ export default function AuthPage() {
         ? login({
             username: data.username,
             password: data.password,
+            email: data.username, // Allow login with email
+            role: "user"
           })
         : register({
             username: data.username,
             password: data.password,
             email: 'email' in data ? data.email : data.username,
+            role: "user"
           }));
 
       if (!result.ok) {
+        // Show error toast with specific messages
         toast({
           variant: "destructive",
-          title: "Error",
-          description: result.message,
+          title: isLogin ? "Login Failed" : "Registration Failed",
+          description: result.message === "Invalid username or email" 
+            ? "The username or email you entered doesn't exist"
+            : result.message === "Incorrect password"
+            ? "The password you entered is incorrect"
+            : result.message === "Username already exists"
+            ? "This username is already taken. Please choose another one"
+            : result.message || "An unexpected error occurred",
+        });
+      } else {
+        // Show success toast
+        toast({
+          title: "Success",
+          description: isLogin 
+            ? "Welcome back!" 
+            : "Account created successfully!",
         });
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: "An unexpected error occurred. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
