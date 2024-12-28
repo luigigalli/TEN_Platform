@@ -20,7 +20,11 @@ function App() {
   }
 
   if (!user) {
-    return <AuthPage />;
+    return (
+      <div className="min-h-screen bg-background">
+        <AuthPage />
+      </div>
+    );
   }
 
   return (
