@@ -200,21 +200,48 @@ export function registerRoutes(app: Express): Server {
 
     try {
       const userId = (req.user as any).id;
+      console.log('Fetching trips for user:', userId);
 
-      // Get trips where user is owner or member
-      const userTrips = await db
+      // First get all trips where user is the owner
+      const ownedTrips = await db
         .select()
         .from(trips)
-        .where(
-          or(
-            eq(trips.userId, userId),
-            eq(tripMembers.userId, userId)
-          )
-        )
-        .leftJoin(tripMembers, eq(trips.id, tripMembers.tripId))
-        .orderBy(desc(trips.createdAt));
+        .where(eq(trips.userId, userId));
 
-      res.json(userTrips);
+      // Then get trips where user is a member
+      const memberTrips = await db
+        .select({
+          trip: trips,
+          memberStatus: tripMembers.status
+        })
+        .from(trips)
+        .innerJoin(
+          tripMembers,
+          and(
+            eq(trips.id, tripMembers.tripId),
+            eq(tripMembers.userId, userId),
+            eq(tripMembers.status, "accepted")
+          )
+        );
+
+      // Combine and deduplicate trips
+      const combinedTrips = [
+        ...ownedTrips,
+        ...memberTrips.map(({ trip }) => trip)
+      ];
+
+      // Remove duplicates based on trip ID
+      const uniqueTrips = Array.from(
+        new Map(combinedTrips.map(trip => [trip.id, trip])).values()
+      );
+
+      // Sort by created date
+      const sortedTrips = uniqueTrips.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      console.log('Returning trips:', sortedTrips.length);
+      res.json(sortedTrips);
     } catch (error: any) {
       console.error('Trips fetch error:', error);
       res.status(500).send(error.message);
@@ -299,6 +326,7 @@ export function registerRoutes(app: Express): Server {
       res.status(500).send(error.message);
     }
   });
+
 
 
   app.get("/api/trips/:tripId/activities", async (req, res) => {
