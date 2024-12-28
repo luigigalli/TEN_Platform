@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import ServiceBookingForm from "../components/ServiceBookingForm";
 import type { Service } from "@db/schema";
@@ -81,9 +82,12 @@ export default function ServicesPage() {
       </div>
 
       <Dialog open={!!selectedService} onOpenChange={() => setSelectedService(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Book Service</DialogTitle>
+            <DialogDescription>
+              Fill in the booking details and complete the payment to secure your service.
+            </DialogDescription>
           </DialogHeader>
           {selectedService && (
             <ServiceBookingForm

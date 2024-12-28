@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { usePayment } from "../hooks/use-payment";
-import type { Service, InsertBooking } from "@db/schema";
+import type { Service } from "@db/schema";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -44,7 +44,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
   const onSubmit = async (data: z.infer<typeof bookingSchema>) => {
     try {
       setIsSubmitting(true);
-      console.log("Submitting booking:", {
+      console.log("Creating booking:", {
         ...data,
         totalPrice: Number(service.price),
       });
@@ -65,9 +65,15 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
       }
 
       const { booking, clientSecret } = await response.json();
+      console.log("Booking created:", booking);
 
       // Process payment
-      await processPayment(clientSecret);
+      try {
+        await processPayment(clientSecret);
+      } catch (error: any) {
+        console.error("Payment processing error:", error);
+        throw new Error(`Payment failed: ${error.message}`);
+      }
 
       // Confirm payment
       const confirmResponse = await fetch("/api/payments/confirm", {
@@ -94,7 +100,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to process booking and payment",
       });
     } finally {
       setIsSubmitting(false);
@@ -108,8 +114,13 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
         <Input
           id="startDate"
           type="date"
-          {...form.register("startDate", { required: true })}
+          {...form.register("startDate")}
+          min={new Date().toISOString().split('T')[0]}
+          aria-describedby="startDateHelp"
         />
+        <p id="startDateHelp" className="text-sm text-muted-foreground">
+          Select when you want the service to start
+        </p>
         {form.formState.errors.startDate && (
           <p className="text-sm text-destructive">
             {form.formState.errors.startDate.message}
@@ -123,7 +134,12 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
           id="endDate"
           type="date"
           {...form.register("endDate")}
+          min={form.watch("startDate") || new Date().toISOString().split('T')[0]}
+          aria-describedby="endDateHelp"
         />
+        <p id="endDateHelp" className="text-sm text-muted-foreground">
+          Select an end date for multi-day services
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -132,18 +148,28 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
           id="notes"
           {...form.register("notes")}
           placeholder="Any special requirements..."
+          aria-describedby="notesHelp"
         />
+        <p id="notesHelp" className="text-sm text-muted-foreground">
+          Add any specific requirements or notes for the service provider
+        </p>
       </div>
 
       <div className="pt-4">
-        <p className="text-sm text-muted-foreground mb-4">
-          Total Price: ${Number(service.price).toFixed(2)}
-        </p>
+        <div className="mb-4 p-4 bg-muted rounded-lg">
+          <h4 className="font-semibold mb-2">Payment Summary</h4>
+          <p className="text-sm text-muted-foreground">
+            Service Price: ${Number(service.price).toFixed(2)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            You will be charged immediately upon booking
+          </p>
+        </div>
         <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
+              Processing Payment...
             </>
           ) : (
             "Book and Pay Now"
