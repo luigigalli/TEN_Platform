@@ -12,7 +12,8 @@ import {
   insertTripSchema, 
   insertBookingSchema, 
   insertServiceSchema,
-  insertExpertMessageSchema
+  insertExpertMessageSchema,
+  type Trip
 } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { createPaymentIntent, confirmPayment } from "./payment";
@@ -137,7 +138,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Trips endpoints
-  app.get("/api/trips", async (req, res) => {
+  app.get("/api/trips", async (_req, res) => {
     try {
       const userTrips = await db.select().from(trips);
       res.json(userTrips);
@@ -160,12 +161,16 @@ export function registerRoutes(app: Express): Server {
         );
       }
 
+      const tripData: Omit<Trip, 'id' | 'createdAt'> = {
+        ...result.data,
+        userId: (req.user as any).id,
+        members: [],
+        itinerary: [],
+      };
+
       const [trip] = await db
         .insert(trips)
-        .values({
-          ...result.data,
-          userId: (req.user as any).id,
-        })
+        .values(tripData)
         .returning();
 
       res.json(trip);
@@ -176,7 +181,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Posts endpoints
-  app.get("/api/posts", async (req, res) => {
+  app.get("/api/posts", async (_req, res) => {
     try {
       const userPosts = await db.select().from(posts);
       res.json(userPosts);
@@ -207,8 +212,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-    // Add users endpoint for profile viewing
-  app.get("/api/users", async (req, res) => {
+  // Add users endpoint for profile viewing
+  app.get("/api/users", async (_req, res) => {
     try {
       const allUsers = await db.select().from(users);
       res.json(allUsers.map(user => ({
