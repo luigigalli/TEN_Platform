@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp, json, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -65,8 +66,8 @@ export const posts = pgTable("posts", {
 
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
-  senderId: integer("sender_id").references(() => users.id),
-  receiverId: integer("receiver_id").references(() => users.id),
+  senderId: integer("sender_id").references(() => users.id).notNull(),
+  receiverId: integer("receiver_id").references(() => users.id).notNull(),
   conversationId: text("conversation_id").notNull(),
   message: text("message").notNull(),
   status: text("status").notNull().default("unread"),
@@ -75,6 +76,23 @@ export const messages = pgTable("messages", {
   contextType: text("context_type"),
   createdAt: timestamp("created_at").defaultNow()
 });
+
+// Add relations
+export const messagesRelations = relations(messages, ({ one }) => ({
+  sender: one(users, {
+    fields: [messages.senderId],
+    references: [users.id],
+  }),
+  receiver: one(users, {
+    fields: [messages.receiverId],
+    references: [users.id],
+  }),
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  sentMessages: many(messages, { relationName: "sender" }),
+  receivedMessages: many(messages, { relationName: "receiver" }),
+}));
 
 export const insertTripSchema = createInsertSchema(trips, {
   startDate: z.string().transform((str) => str ? new Date(str) : null),
@@ -101,7 +119,17 @@ export const insertPostSchema = createInsertSchema(posts);
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 
-export const insertMessageSchema = createInsertSchema(messages);
+export const insertMessageSchema = createInsertSchema(messages, {
+  messageType: z.enum([
+    'expert_inquiry',
+    'trip_discussion', 
+    'booking_support',
+    'admin_notice'
+  ]),
+  contextType: z.enum(['trip', 'booking', 'service']).optional(),
+  status: z.enum(['read', 'unread']).default('unread'),
+});
+
 export const selectMessageSchema = createSelectSchema(messages);
 
 export type User = typeof users.$inferSelect;

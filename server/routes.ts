@@ -13,9 +13,11 @@ import {
   insertBookingSchema, 
   insertServiceSchema,
   insertMessageSchema,
-  type Trip
+  type Trip,
+  type Message,
+  type InsertMessage
 } from "@db/schema";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and, desc } from "drizzle-orm";
 import { createPaymentIntent, confirmPayment } from "./payment";
 
 export function registerRoutes(app: Express): Server {
@@ -52,7 +54,8 @@ export function registerRoutes(app: Express): Server {
                 eq(messages.senderId, userId),
                 eq(messages.receiverId, userId)
               )
-        );
+        )
+        .orderBy(desc(messages.createdAt));
 
       res.json(userMessages);
     } catch (error: any) {
@@ -68,15 +71,18 @@ export function registerRoutes(app: Express): Server {
 
     try {
       console.log('Processing message:', req.body);
-      const result = insertMessageSchema.safeParse({
+      const messageData: Partial<InsertMessage> = {
         ...req.body,
         senderId: (req.user as any).id,
-      });
+        status: 'unread',
+      };
+
+      const result = insertMessageSchema.safeParse(messageData);
 
       if (!result.success) {
         console.error('Message validation error:', result.error);
         return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i: any) => i.message).join(", ")
+          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
         );
       }
 
@@ -323,43 +329,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Expert contact endpoint
-  app.post("/api/experts/contact", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      console.log('Processing expert contact request:', req.body);
-      const result = insertExpertMessageSchema.safeParse({
-        ...req.body,
-        userId: (req.user as any).id,
-      });
-
-      if (!result.success) {
-        console.error('Expert message validation error:', result.error);
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
-      }
-
-      const [message] = await db
-        .insert(expertMessages)
-        .values({
-          expertId: result.data.expertId,
-          userId: result.data.userId,
-          message: result.data.message,
-          status: "unread"
-        })
-        .returning();
-
-      console.log('Expert message created successfully:', message);
-      res.json(message);
-    } catch (error: any) {
-      console.error('Expert message creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
 
   const httpServer = createServer(app);
   return httpServer;
