@@ -25,18 +25,19 @@ import { eq, or, and, desc } from "drizzle-orm";
 import { createPaymentIntent, confirmPayment } from "./payment";
 
 export function registerRoutes(app: Express): Server {
+  // Set up authentication first, before any other routes
+  setupAuth(app);
+
   // Authentication logging middleware
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) {
-      console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+      console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - User: ${req.user?.username || 'anonymous'}`);
       if (req.method === 'POST') {
-        console.log('Request body:', JSON.stringify(req.body, null, 2));
+        console.log('Request body:', req.body ? JSON.stringify(req.body, null, 2) : 'No body');
       }
     }
     next();
   });
-
-  setupAuth(app);
 
   // Trip collaboration endpoints
   app.get("/api/trips/:tripId/members", async (req, res) => {
@@ -80,9 +81,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const isOwner = trip.userId === (req.user as any).id;
-      const canInvite = isOwner || trip.collaborationSettings.canInvite;
-
-      if (!canInvite) {
+      if (!isOwner && !(trip.collaborationSettings as any)?.canInvite) {
         return res.status(403).send("You don't have permission to invite members");
       }
 
@@ -135,6 +134,76 @@ export function registerRoutes(app: Express): Server {
       res.json(member);
     } catch (error: any) {
       console.error('Trip member creation error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Messages endpoints with proper type handling
+  app.post("/api/messages", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      console.log('Processing message:', req.body);
+      const messageData = {
+        ...req.body,
+        senderId: (req.user as any).id,
+        status: 'unread' as const,
+      };
+
+      const result = insertMessageSchema.safeParse(messageData);
+
+      if (!result.success) {
+        console.error('Message validation error:', result.error);
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
+        );
+      }
+
+      const [message] = await db
+        .insert(messages)
+        .values(result.data)
+        .returning();
+
+      console.log('Message created successfully:', message);
+      res.json(message);
+    } catch (error: any) {
+      console.error('Message creation error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Trips creation with proper type handling
+  app.post("/api/trips", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const result = insertTripSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
+        );
+      }
+
+      const [trip] = await db
+        .insert(trips)
+        .values({
+          ...result.data,
+          userId: (req.user as any).id,
+          collaborationSettings: {
+            canInvite: false,
+            canEdit: false,
+            canComment: true
+          }
+        })
+        .returning();
+
+      res.json(trip);
+    } catch (error: any) {
+      console.error('Trip creation error:', error);
       res.status(500).send(error.message);
     }
   });
@@ -235,40 +304,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/messages", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      console.log('Processing message:', req.body);
-      const messageData: Partial<InsertMessage> = {
-        ...req.body,
-        senderId: (req.user as any).id,
-        status: 'unread',
-      };
-
-      const result = insertMessageSchema.safeParse(messageData);
-
-      if (!result.success) {
-        console.error('Message validation error:', result.error);
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
-      }
-
-      const [message] = await db
-        .insert(messages)
-        .values(result.data)
-        .returning();
-
-      console.log('Message created successfully:', message);
-      res.json(message);
-    } catch (error: any) {
-      console.error('Message creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
 
   app.post("/api/messages/:messageId/read", async (req, res) => {
     if (!req.isAuthenticated()) {
@@ -422,38 +457,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/trips", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const result = insertTripSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
-      }
-
-      const tripData: Omit<Trip, 'id' | 'createdAt'> = {
-        ...result.data,
-        userId: (req.user as any).id,
-        members: [],
-        itinerary: [],
-      };
-
-      const [trip] = await db
-        .insert(trips)
-        .values(tripData)
-        .returning();
-
-      res.json(trip);
-    } catch (error: any) {
-      console.error('Trip creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
   // Posts endpoints
   app.get("/api/posts", async (_req, res) => {
     try {
@@ -499,7 +502,6 @@ export function registerRoutes(app: Express): Server {
       res.status(500).send(error.message);
     }
   });
-
 
   const httpServer = createServer(app);
   return httpServer;
