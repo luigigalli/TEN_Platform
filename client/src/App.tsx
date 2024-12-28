@@ -13,7 +13,7 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -31,9 +31,18 @@ function App() {
           <Route path="/" component={HomePage} />
           <Route path="/services" component={ServicesPage} />
           <Route path="/trips" component={TripPlanner} />
-          <Route path="/profile" component={Profile} />
+          <Route path="/profile">
+            <Profile />
+          </Route>
           <Route path="/profile/:id">
             {(params) => <Profile userId={parseInt(params.id)} />}
+          </Route>
+          <Route>
+            {/* 404 Page */}
+            <div className="text-center">
+              <h1 className="text-2xl font-bold">Page Not Found</h1>
+              <p className="text-muted-foreground mt-2">The page you're looking for doesn't exist.</p>
+            </div>
           </Route>
         </Switch>
       </main>
