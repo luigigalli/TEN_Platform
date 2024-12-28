@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, boolean, timestamp, json } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { z } from "zod";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -37,9 +38,18 @@ export const posts = pgTable("posts", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+export const insertTripSchema = createInsertSchema(trips, {
+  startDate: z.string().transform((str) => str ? new Date(str) : null),
+  endDate: z.string().transform((str) => str ? new Date(str) : null),
+});
+
+export const insertPostSchema = createInsertSchema(posts);
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+
 export type User = typeof users.$inferSelect;
 export type Trip = typeof trips.$inferSelect;
 export type Post = typeof posts.$inferSelect;
-
-export const insertUserSchema = createInsertSchema(users);
-export const selectUserSchema = createSelectSchema(users);
+export type InsertTrip = z.infer<typeof insertTripSchema>;
+export type InsertUser = typeof users.$inferInsert;
+export type SelectUser = typeof users.$inferSelect;
