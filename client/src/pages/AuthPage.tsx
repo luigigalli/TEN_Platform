@@ -62,18 +62,14 @@ export default function AuthPage() {
           toast({
             variant: "destructive",
             title: "Login Failed",
-            description: result.message === "Invalid username or email" 
-              ? "The username or email you entered doesn't exist"
-              : result.message === "Incorrect password"
-              ? "The password you entered is incorrect"
-              : result.message || "An unexpected error occurred"
+            description: result.message
           });
           return;
         }
 
         toast({
           title: "Success",
-          description: "Welcome back!"
+          description: result.message || "Welcome back!"
         });
       } else {
         const result = await register({
@@ -87,23 +83,21 @@ export default function AuthPage() {
           toast({
             variant: "destructive",
             title: "Registration Failed",
-            description: result.message === "Username or email already exists"
-              ? "This username or email is already taken. Please choose another one"
-              : result.message || "An unexpected error occurred"
+            description: result.message
           });
           return;
         }
 
         toast({
           title: "Success",
-          description: "Account created successfully!"
+          description: result.message || "Account created successfully!"
         });
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "An unexpected error occurred. Please try again."
+        description: error.message || "An unexpected error occurred. Please try again."
       });
     } finally {
       setIsSubmitting(false);
