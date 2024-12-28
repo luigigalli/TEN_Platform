@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { trips, posts } from "@db/schema";
+import { trips, posts, insertTripSchema } from "@db/schema";
 import { eq } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
@@ -23,15 +23,26 @@ export function registerRoutes(app: Express): Server {
       return res.status(401).send("Not authenticated");
     }
 
-    const trip = await db
-      .insert(trips)
-      .values({
-        ...req.body,
-        userId: req.user!.id,
-      })
-      .returning();
+    try {
+      const result = insertTripSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
+        );
+      }
 
-    res.json(trip[0]);
+      const trip = await db
+        .insert(trips)
+        .values({
+          ...result.data,
+          userId: req.user!.id,
+        })
+        .returning();
+
+      res.json(trip[0]);
+    } catch (error: any) {
+      res.status(500).send(error.message);
+    }
   });
 
   // Posts endpoints
