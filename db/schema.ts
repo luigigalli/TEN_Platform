@@ -16,6 +16,22 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+// Create a more robust validation schema for user registration
+export const insertUserSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email("Invalid email format"),
+  role: z.enum(["user", "expert", "provider", "admin"]).default("user"),
+  fullName: z.string().optional(),
+  bio: z.string().optional(),
+  avatar: z.string().optional(),
+  languages: z.array(z.string()).optional()
+});
+
+export const selectUserSchema = createSelectSchema(users);
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type SelectUser = typeof users.$inferSelect;
+
 export const services = pgTable("services", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -116,13 +132,11 @@ export const insertBookingSchema = bookingValidationSchema;
 export const selectBookingSchema = createSelectSchema(bookings);
 
 export const insertPostSchema = createInsertSchema(posts);
-export const insertUserSchema = createInsertSchema(users);
-export const selectUserSchema = createSelectSchema(users);
 
 export const insertMessageSchema = createInsertSchema(messages, {
   messageType: z.enum([
     'expert_inquiry',
-    'trip_discussion', 
+    'trip_discussion',
     'booking_support',
     'admin_notice'
   ]),
@@ -138,8 +152,6 @@ export type Post = typeof posts.$inferSelect;
 export type Service = typeof services.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertTrip = z.infer<typeof insertTripSchema>;
-export type InsertUser = typeof users.$inferInsert;
-export type SelectUser = typeof users.$inferSelect;
 export type InsertService = typeof services.$inferInsert;
 export type InsertBooking = z.infer<typeof bookingValidationSchema>;
 export type Message = typeof messages.$inferSelect;
