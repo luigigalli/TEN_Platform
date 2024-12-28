@@ -2,7 +2,18 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { users, trips, posts, services, bookings, insertTripSchema, insertBookingSchema, insertServiceSchema } from "@db/schema";
+import { 
+  users, 
+  trips, 
+  posts, 
+  services, 
+  bookings, 
+  expertMessages,
+  insertTripSchema, 
+  insertBookingSchema, 
+  insertServiceSchema,
+  insertExpertMessageSchema
+} from "@db/schema";
 import { eq } from "drizzle-orm";
 import { createPaymentIntent, confirmPayment } from "./payment";
 
@@ -206,6 +217,44 @@ export function registerRoutes(app: Express): Server {
       })));
     } catch (error: any) {
       console.error('Users fetch error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Expert contact endpoint
+  app.post("/api/experts/contact", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      console.log('Processing expert contact request:', req.body);
+      const result = insertExpertMessageSchema.safeParse({
+        ...req.body,
+        userId: (req.user as any).id,
+      });
+
+      if (!result.success) {
+        console.error('Expert message validation error:', result.error);
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
+        );
+      }
+
+      const [message] = await db
+        .insert(expertMessages)
+        .values({
+          expertId: result.data.expertId,
+          userId: result.data.userId,
+          message: result.data.message,
+          status: "unread"
+        })
+        .returning();
+
+      console.log('Expert message created successfully:', message);
+      res.json(message);
+    } catch (error: any) {
+      console.error('Expert message creation error:', error);
       res.status(500).send(error.message);
     }
   });
