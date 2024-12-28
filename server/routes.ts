@@ -44,7 +44,7 @@ export function registerRoutes(app: Express): Server {
         );
       }
 
-      const service = await db
+      const [service] = await db
         .insert(services)
         .values({
           ...result.data,
@@ -52,7 +52,7 @@ export function registerRoutes(app: Express): Server {
         })
         .returning();
 
-      res.json(service[0]);
+      res.json(service);
     } catch (error: any) {
       console.error('Service creation error:', error);
       res.status(500).send(error.message);
@@ -76,22 +76,27 @@ export function registerRoutes(app: Express): Server {
         );
       }
 
-      const booking = await db
+      // Create booking with pending_payment status
+      const [booking] = await db
         .insert(bookings)
         .values({
-          ...result.data,
+          startDate: new Date(result.data.startDate),
+          endDate: result.data.endDate ? new Date(result.data.endDate) : null,
+          totalPrice: result.data.totalPrice.toString(),
+          status: "pending_payment",
+          notes: result.data.notes,
+          serviceId: result.data.serviceId,
           userId: (req.user as any).id,
-          status: "pending_payment"
         })
         .returning();
 
-      console.log('Booking created successfully:', booking[0]);
+      console.log('Booking created successfully:', booking);
 
       // Create payment intent
-      const paymentIntent = await createPaymentIntent(booking[0].id);
+      const paymentIntent = await createPaymentIntent(booking.id);
 
       res.json({
-        booking: booking[0],
+        booking,
         clientSecret: paymentIntent.client_secret
       });
     } catch (error: any) {
@@ -144,7 +149,7 @@ export function registerRoutes(app: Express): Server {
         );
       }
 
-      const trip = await db
+      const [trip] = await db
         .insert(trips)
         .values({
           ...result.data,
@@ -152,7 +157,7 @@ export function registerRoutes(app: Express): Server {
         })
         .returning();
 
-      res.json(trip[0]);
+      res.json(trip);
     } catch (error: any) {
       console.error('Trip creation error:', error);
       res.status(500).send(error.message);
@@ -176,7 +181,7 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      const post = await db
+      const [post] = await db
         .insert(posts)
         .values({
           ...req.body,
@@ -184,14 +189,14 @@ export function registerRoutes(app: Express): Server {
         })
         .returning();
 
-      res.json(post[0]);
+      res.json(post);
     } catch (error: any) {
       console.error('Post creation error:', error);
       res.status(500).send(error.message);
     }
   });
 
-  // Add users endpoint for profile viewing
+    // Add users endpoint for profile viewing
   app.get("/api/users", async (req, res) => {
     try {
       const allUsers = await db.select().from(users);
