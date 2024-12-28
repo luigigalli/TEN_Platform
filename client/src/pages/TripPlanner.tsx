@@ -16,21 +16,28 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import type { Trip } from "@db/schema";
 import TripCard from "../components/TripCard";
+import TripCollaboration from "../components/TripCollaboration";
 
 export default function TripPlanner() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const { trips, createTrip } = useTrips();
   const { user } = useUser();
   const { toast } = useToast();
-  
+
   const form = useForm<Partial<Trip>>({
     defaultValues: {
       title: "",
       description: "",
       destination: "",
-      startDate: undefined,
-      endDate: undefined,
+      startDate: null,
+      endDate: null,
       isPrivate: false,
+      collaborationSettings: {
+        canInvite: false,
+        canEdit: false,
+        canComment: true
+      }
     },
   });
 
@@ -52,8 +59,12 @@ export default function TripPlanner() {
     }
   };
 
+  const handleTripClick = (trip: Trip) => {
+    setSelectedTrip(trip);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Trip Planner</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -69,7 +80,7 @@ export default function TripPlanner() {
                 <Label htmlFor="title">Title</Label>
                 <Input
                   id="title"
-                  {...form.register("title", { required: true })}
+                  {...form.register("title")}
                 />
               </div>
 
@@ -77,7 +88,7 @@ export default function TripPlanner() {
                 <Label htmlFor="destination">Destination</Label>
                 <Input
                   id="destination"
-                  {...form.register("destination", { required: true })}
+                  {...form.register("destination")}
                 />
               </div>
 
@@ -117,10 +128,29 @@ export default function TripPlanner() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {trips?.map((trip) => (
-          <TripCard key={trip.id} trip={trip} user={user!} />
-        ))}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {trips?.map((trip) => (
+              <div
+                key={trip.id}
+                onClick={() => handleTripClick(trip)}
+                className="cursor-pointer"
+              >
+                <TripCard trip={trip} user={user!} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="lg:col-span-1">
+          {selectedTrip && (
+            <div className="bg-card rounded-lg p-6 shadow-lg">
+              <h2 className="text-2xl font-semibold mb-6">Trip Collaboration</h2>
+              <TripCollaboration trip={selectedTrip} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
