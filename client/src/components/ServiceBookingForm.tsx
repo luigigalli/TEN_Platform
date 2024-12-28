@@ -8,7 +8,7 @@ import type { Service } from "@db/schema";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
 
 const bookingSchema = z.object({
   serviceId: z.number(),
@@ -26,6 +26,7 @@ interface ServiceBookingFormProps {
 
 export default function ServiceBookingForm({ service, onSuccess }: ServiceBookingFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const { toast } = useToast();
   const { processPayment } = usePayment();
 
@@ -70,31 +71,36 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
       // Process payment
       try {
         await processPayment(clientSecret);
+        console.log("Payment processed successfully");
+
+        // Confirm payment
+        const confirmResponse = await fetch("/api/payments/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookingId: booking.id,
+            paymentIntentId: clientSecret.split("_secret_")[0],
+          }),
+          credentials: "include",
+        });
+
+        if (!confirmResponse.ok) {
+          throw new Error(await confirmResponse.text());
+        }
+
+        setIsSuccess(true);
+        setTimeout(() => {
+          onSuccess();
+        }, 2000); // Show success state for 2 seconds before closing
+
+        toast({
+          title: "Success",
+          description: "Booking confirmed and payment processed successfully!",
+        });
       } catch (error: any) {
         console.error("Payment processing error:", error);
         throw new Error(`Payment failed: ${error.message}`);
       }
-
-      // Confirm payment
-      const confirmResponse = await fetch("/api/payments/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bookingId: booking.id,
-          paymentIntentId: clientSecret.split("_secret_")[0],
-        }),
-        credentials: "include",
-      });
-
-      if (!confirmResponse.ok) {
-        throw new Error(await confirmResponse.text());
-      }
-
-      onSuccess();
-      toast({
-        title: "Success",
-        description: "Booking confirmed and payment processed successfully!",
-      });
     } catch (error: any) {
       console.error("Booking error:", error);
       toast({
@@ -117,6 +123,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
           {...form.register("startDate")}
           min={new Date().toISOString().split('T')[0]}
           aria-describedby="startDateHelp"
+          disabled={isSubmitting || isSuccess}
         />
         <p id="startDateHelp" className="text-sm text-muted-foreground">
           Select when you want the service to start
@@ -136,6 +143,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
           {...form.register("endDate")}
           min={form.watch("startDate") || new Date().toISOString().split('T')[0]}
           aria-describedby="endDateHelp"
+          disabled={isSubmitting || isSuccess}
         />
         <p id="endDateHelp" className="text-sm text-muted-foreground">
           Select an end date for multi-day services
@@ -149,6 +157,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
           {...form.register("notes")}
           placeholder="Any special requirements..."
           aria-describedby="notesHelp"
+          disabled={isSubmitting || isSuccess}
         />
         <p id="notesHelp" className="text-sm text-muted-foreground">
           Add any specific requirements or notes for the service provider
@@ -165,12 +174,21 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
             You will be charged immediately upon booking
           </p>
         </div>
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
+        <Button 
+          type="submit" 
+          className="w-full" 
+          disabled={isSubmitting || isSuccess}
+        >
+          {isSuccess ? (
+            <div className="flex items-center justify-center">
+              <Check className="mr-2 h-4 w-4" />
+              Booking Confirmed!
+            </div>
+          ) : isSubmitting ? (
+            <div className="flex items-center justify-center">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Processing Payment...
-            </>
+            </div>
           ) : (
             "Book and Pay Now"
           )}
