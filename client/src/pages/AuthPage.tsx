@@ -10,12 +10,12 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 const loginSchema = z.object({
-  identifier: z.string().min(1, "Username or email is required"),
+  username: z.string().min(1, "Username or email is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 const registerSchema = z.object({
-  identifier: z.string().min(1, "Username is required"),
+  username: z.string().min(3, "Username must be at least 3 characters"),
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
@@ -32,7 +32,7 @@ export default function AuthPage() {
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      identifier: "",
+      username: "",
       password: "",
     },
   });
@@ -40,7 +40,7 @@ export default function AuthPage() {
   const registerForm = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      identifier: "",
+      username: "",
       email: "",
       password: "",
     },
@@ -51,13 +51,13 @@ export default function AuthPage() {
       setIsSubmitting(true);
       const result = await (isLogin
         ? login({
-            identifier: data.identifier,
+            username: data.username,
             password: data.password,
           })
         : register({
-            username: data.identifier,
+            username: data.username,
             password: data.password,
-            email: 'email' in data ? data.email : data.identifier,
+            email: 'email' in data ? data.email : data.username,
           }));
 
       if (!result.ok) {
@@ -91,17 +91,17 @@ export default function AuthPage() {
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="identifier">
+              <Label htmlFor="username">
                 {isLogin ? "Username or Email" : "Username"}
               </Label>
               <Input
-                id="identifier"
-                {...form.register("identifier")}
+                id="username"
+                {...form.register("username")}
                 disabled={isSubmitting}
               />
-              {form.formState.errors.identifier && (
+              {form.formState.errors.username && (
                 <p className="text-sm text-destructive">
-                  {form.formState.errors.identifier.message}
+                  {form.formState.errors.username.message}
                 </p>
               )}
             </div>

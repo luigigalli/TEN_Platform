@@ -30,12 +30,25 @@ const crypto = {
 };
 
 export function setupAuth(app: Express) {
+  // Authentication logging middleware
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+      if (req.method === 'POST') {
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
+      }
+    }
+    next();
+  });
+
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "ten-session-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: {},
+    cookie: {
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    },
     store: new MemoryStore({
       checkPeriod: 86400000,
     }),
@@ -45,6 +58,7 @@ export function setupAuth(app: Express) {
     app.set("trust proxy", 1);
     sessionSettings.cookie = {
       secure: true,
+      maxAge: 24 * 60 * 60 * 1000
     };
   }
 
@@ -63,7 +77,7 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(
       {
-        usernameField: 'identifier',
+        usernameField: 'username', //Corrected the usernameField
         passwordField: 'password',
       },
       async (identifier, password, done) => {
@@ -128,6 +142,7 @@ export function setupAuth(app: Express) {
 
       const { username, password, email } = result.data;
 
+      // Check for existing user with same username or email
       const [existingUser] = await db
         .select()
         .from(users)
