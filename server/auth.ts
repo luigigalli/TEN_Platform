@@ -6,7 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { users, insertUserSchema } from "@db/schema";
 import { db } from "@db";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import type { Express } from "express";
 
 const scryptAsync = promisify(scrypt);
@@ -55,14 +55,15 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        // Check for both username and email
         const [user] = await db
           .select()
           .from(users)
-          .where(eq(users.username, username))
+          .where(or(eq(users.username, username), eq(users.email, username)))
           .limit(1);
 
         if (!user) {
-          return done(null, false, { message: "Incorrect username." });
+          return done(null, false, { message: "Invalid username or email." });
         }
 
         const isMatch = await crypto.compare(password, user.password);
@@ -110,11 +111,11 @@ export function setupAuth(app: Express) {
       const [existingUser] = await db
         .select()
         .from(users)
-        .where(eq(users.username, username))
+        .where(or(eq(users.username, username), eq(users.email, email)))
         .limit(1);
 
       if (existingUser) {
-        return res.status(400).send("Username already exists");
+        return res.status(400).send("Username or email already exists");
       }
 
       const hashedPassword = await crypto.hash(password);

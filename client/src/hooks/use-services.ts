@@ -4,7 +4,7 @@ import type { Service, InsertService } from "@db/schema";
 export function useServices() {
   const queryClient = useQueryClient();
 
-  const { data: services, isLoading } = useQuery<Service[]>({
+  const { data: services, isLoading, error } = useQuery<Service[]>({
     queryKey: ["/api/services"],
   });
 
@@ -31,6 +31,7 @@ export function useServices() {
   return {
     services,
     isLoading,
+    error,
     createService: createService.mutateAsync,
   };
 }
