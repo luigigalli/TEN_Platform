@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, json } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, json, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -12,6 +12,31 @@ export const users = pgTable("users", {
   bio: text("bio"),
   avatar: text("avatar"),
   languages: json("languages").default([]),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const services = pgTable("services", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  price: decimal("price").notNull(),
+  location: text("location").notNull(),
+  providerId: integer("provider_id").references(() => users.id),
+  category: text("category").notNull(),
+  images: json("images").default([]),
+  availability: json("availability").default([]),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const bookings = pgTable("bookings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  serviceId: integer("service_id").references(() => services.id),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  status: text("status").notNull().default("pending"),
+  totalPrice: decimal("total_price").notNull(),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow()
 });
 
@@ -43,6 +68,12 @@ export const insertTripSchema = createInsertSchema(trips, {
   endDate: z.string().transform((str) => str ? new Date(str) : null),
 });
 
+export const insertServiceSchema = createInsertSchema(services);
+export const insertBookingSchema = createInsertSchema(bookings, {
+  startDate: z.string().transform((str) => new Date(str)),
+  endDate: z.string().transform((str) => str ? new Date(str) : null),
+});
+
 export const insertPostSchema = createInsertSchema(posts);
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -50,6 +81,10 @@ export const selectUserSchema = createSelectSchema(users);
 export type User = typeof users.$inferSelect;
 export type Trip = typeof trips.$inferSelect;
 export type Post = typeof posts.$inferSelect;
+export type Service = typeof services.$inferSelect;
+export type Booking = typeof bookings.$inferSelect;
 export type InsertTrip = z.infer<typeof insertTripSchema>;
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
+export type InsertService = typeof services.$inferInsert;
+export type InsertBooking = typeof bookings.$inferInsert;

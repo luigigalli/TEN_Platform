@@ -26,6 +26,11 @@ export default function Navigation({ user }: { user: User }) {
                 </Link>
               </NavigationMenuItem>
               <NavigationMenuItem>
+                <Link href="/services">
+                  <Button variant="ghost">Services</Button>
+                </Link>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
                 <Link href="/trips">
                   <Button variant="ghost">Trip Planner</Button>
                 </Link>

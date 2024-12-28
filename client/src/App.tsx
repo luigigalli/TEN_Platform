@@ -4,6 +4,7 @@ import Navigation from "./components/Navigation";
 import AuthPage from "./pages/AuthPage";
 import HomePage from "./pages/HomePage";
 import TripPlanner from "./pages/TripPlanner";
+import ServicesPage from "./pages/ServicesPage";
 import Profile from "./pages/Profile";
 import { Loader2 } from "lucide-react";
 
@@ -28,6 +29,7 @@ function App() {
       <main className="container mx-auto px-4 py-8">
         <Switch>
           <Route path="/" component={HomePage} />
+          <Route path="/services" component={ServicesPage} />
           <Route path="/trips" component={TripPlanner} />
           <Route path="/profile" component={Profile} />
           <Route path="/profile/:id">
