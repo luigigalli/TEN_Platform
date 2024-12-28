@@ -65,8 +65,14 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      const result = insertBookingSchema.safeParse(req.body);
+      console.log('Processing booking request:', req.body);
+      const result = insertBookingSchema.safeParse({
+        ...req.body,
+        startDate: new Date(req.body.startDate),
+      });
+
       if (!result.success) {
+        console.error('Booking validation error:', result.error);
         return res.status(400).send(
           "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
         );
@@ -80,6 +86,7 @@ export function registerRoutes(app: Express): Server {
         })
         .returning();
 
+      console.log('Booking created successfully:', booking[0]);
       res.json(booking[0]);
     } catch (error: any) {
       console.error('Booking creation error:', error);
