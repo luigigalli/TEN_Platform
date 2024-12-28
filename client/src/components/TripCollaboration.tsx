@@ -8,14 +8,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "../hooks/use-user";
-import type { Trip, TripMember, TripActivity, User } from "@db/schema";
+import type { Trip, TripMember, TripActivity, User, CollaborationSettings } from "@db/schema";
 import { 
   UserPlus, 
   Settings2, 
   Users,
   Activity,
   Clock,
-  AlertCircle
 } from "lucide-react";
 import {
   Tabs,
@@ -35,17 +34,19 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
   const queryClient = useQueryClient();
 
   // Fetch trip members
-  const { data: members } = useQuery<TripMember[]>({
+  const { data: members = [] } = useQuery<TripMember[]>({
     queryKey: ["/api/trips", trip.id, "members"],
+    enabled: !!trip.id,
   });
 
   // Fetch trip activities
-  const { data: activities } = useQuery<TripActivity[]>({
+  const { data: activities = [] } = useQuery<TripActivity[]>({
     queryKey: ["/api/trips", trip.id, "activities"],
+    enabled: !!trip.id,
   });
 
   // Fetch all users for member lookup
-  const { data: users } = useQuery<User[]>({
+  const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
 
@@ -85,7 +86,7 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
   });
 
   const updateCollaborationSettings = useMutation({
-    mutationFn: async (settings: typeof trip.collaborationSettings) => {
+    mutationFn: async (settings: CollaborationSettings) => {
       const res = await fetch(`/api/trips/${trip.id}/settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -115,7 +116,7 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
   };
 
   const getMemberDetails = (memberId: number) => {
-    return users?.find(u => u.id === memberId);
+    return users.find(u => u.id === memberId);
   };
 
   const isOwner = trip.userId === user?.id;
@@ -123,17 +124,17 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="members">
-        <TabsList>
-          <TabsTrigger value="members">
+        <TabsList className="w-full">
+          <TabsTrigger value="members" className="flex-1">
             <Users className="h-4 w-4 mr-2" />
             Members
           </TabsTrigger>
-          <TabsTrigger value="activity">
+          <TabsTrigger value="activity" className="flex-1">
             <Activity className="h-4 w-4 mr-2" />
             Activity
           </TabsTrigger>
           {isOwner && (
-            <TabsTrigger value="settings">
+            <TabsTrigger value="settings" className="flex-1">
               <Settings2 className="h-4 w-4 mr-2" />
               Settings
             </TabsTrigger>
@@ -160,7 +161,7 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
 
           <ScrollArea className="h-[300px]">
             <div className="space-y-4">
-              {members?.map((member) => {
+              {members.map((member) => {
                 const memberDetails = getMemberDetails(member.userId);
                 return (
                   <div
@@ -169,13 +170,13 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
                   >
                     <div className="flex items-center gap-3">
                       <Avatar>
-                        <AvatarImage src={memberDetails?.avatar} />
+                        <AvatarImage src={memberDetails?.avatar || undefined} />
                         <AvatarFallback>
-                          {memberDetails?.username?.[0]?.toUpperCase()}
+                          {memberDetails?.username?.[0]?.toUpperCase() || '?'}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium">{memberDetails?.username}</p>
+                        <p className="font-medium">{memberDetails?.username || 'Unknown User'}</p>
                         <p className="text-sm text-muted-foreground capitalize">
                           {member.role}
                         </p>
@@ -194,7 +195,7 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
         <TabsContent value="activity" className="space-y-4">
           <ScrollArea className="h-[300px]">
             <div className="space-y-4">
-              {activities?.map((activity) => {
+              {activities.map((activity) => {
                 const activityUser = getMemberDetails(activity.createdBy);
                 return (
                   <div
@@ -202,14 +203,14 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
                     className="flex items-start gap-3 p-2 rounded-lg border"
                   >
                     <Avatar className="mt-1">
-                      <AvatarImage src={activityUser?.avatar} />
+                      <AvatarImage src={activityUser?.avatar || undefined} />
                       <AvatarFallback>
-                        {activityUser?.username?.[0]?.toUpperCase()}
+                        {activityUser?.username?.[0]?.toUpperCase() || '?'}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{activityUser?.username}</p>
+                        <p className="font-medium">{activityUser?.username || 'Unknown User'}</p>
                         <span className="text-sm text-muted-foreground">
                           <Clock className="h-3 w-3 inline mr-1" />
                           {new Date(activity.createdAt).toLocaleString()}

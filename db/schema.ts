@@ -3,6 +3,15 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+// Add collaboration settings type
+export const collaborationSettingsSchema = z.object({
+  canInvite: z.boolean(),
+  canEdit: z.boolean(),
+  canComment: z.boolean()
+});
+
+export type CollaborationSettings = z.infer<typeof collaborationSettingsSchema>;
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
@@ -57,6 +66,7 @@ export const bookings = pgTable("bookings", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+// Update trips table with proper typing
 export const trips = pgTable("trips", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -66,7 +76,7 @@ export const trips = pgTable("trips", {
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
   isPrivate: boolean("is_private").default(false),
-  collaborationSettings: json("collaboration_settings").default({
+  collaborationSettings: json("collaboration_settings").$type<CollaborationSettings>().default({
     canInvite: false,
     canEdit: false,
     canComment: true
@@ -166,14 +176,17 @@ export const tripActivitiesRelations = relations(tripActivities, ({ one }) => ({
   })
 }));
 
-export const insertTripSchema = createInsertSchema(trips, {
-  startDate: z.string().transform((str) => str ? new Date(str) : null),
-  endDate: z.string().transform((str) => str ? new Date(str) : null),
-  collaborationSettings: z.object({
-    canInvite: z.boolean(),
-    canEdit: z.boolean(),
-    canComment: z.boolean()
-  }).optional()
+// Update insert schema with proper validation
+export const insertTripSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  userId: z.number(),
+  destination: z.string().min(1, "Destination is required"),
+  startDate: z.string().transform(str => str ? new Date(str) : null),
+  endDate: z.string().transform(str => str ? new Date(str) : null),
+  isPrivate: z.boolean().optional(),
+  collaborationSettings: collaborationSettingsSchema.optional(),
+  itinerary: z.array(z.any()).optional()
 });
 
 export const insertServiceSchema = createInsertSchema(services);
