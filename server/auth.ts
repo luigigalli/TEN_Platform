@@ -52,30 +52,49 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Auth logging middleware
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Authenticated: ${req.isAuthenticated()}`);
+    }
+    next();
+  });
+
   passport.use(
-    new LocalStrategy(async (username, password, done) => {
-      try {
-        // Check for both username and email
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(or(eq(users.username, username), eq(users.email, username)))
-          .limit(1);
+    new LocalStrategy(
+      {
+        usernameField: 'identifier',
+        passwordField: 'password',
+      },
+      async (identifier, password, done) => {
+        try {
+          console.log(`Attempting login with identifier: ${identifier}`);
+          // Check for both username and email
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(or(eq(users.username, identifier), eq(users.email, identifier)))
+            .limit(1);
 
-        if (!user) {
-          return done(null, false, { message: "Invalid username or email." });
+          if (!user) {
+            console.log('No user found with identifier:', identifier);
+            return done(null, false, { message: "Invalid username or email" });
+          }
+
+          const isMatch = await crypto.compare(password, user.password);
+          if (!isMatch) {
+            console.log('Password mismatch for user:', identifier);
+            return done(null, false, { message: "Incorrect password" });
+          }
+
+          console.log('Login successful for user:', identifier);
+          return done(null, user);
+        } catch (err) {
+          console.error('Login error:', err);
+          return done(err);
         }
-
-        const isMatch = await crypto.compare(password, user.password);
-        if (!isMatch) {
-          return done(null, false, { message: "Incorrect password." });
-        }
-
-        return done(null, user);
-      } catch (err) {
-        return done(err);
       }
-    })
+    )
   );
 
   passport.serializeUser((user: any, done) => {
@@ -97,6 +116,7 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
+      console.log('Register request body:', req.body);
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
         return res
@@ -130,36 +150,50 @@ export function setupAuth(app: Express) {
         })
         .returning();
 
+      console.log('User registered successfully:', username);
+
       req.login(newUser, (err) => {
         if (err) {
           return next(err);
         }
         return res.json({
+          ok: true,
           message: "Registration successful",
           user: newUser,
         });
       });
     } catch (error) {
+      console.error('Registration error:', error);
       next(error);
     }
   });
 
   app.post("/api/login", (req, res, next) => {
+    console.log('Login request body:', req.body);
+
     passport.authenticate("local", (err: any, user: Express.User, info: any) => {
       if (err) {
+        console.error('Login authentication error:', err);
         return next(err);
       }
 
       if (!user) {
-        return res.status(400).send(info.message ?? "Login failed");
+        console.log('Login failed:', info?.message);
+        return res.status(400).json({
+          ok: false,
+          message: info?.message ?? "Login failed"
+        });
       }
 
       req.logIn(user, (err) => {
         if (err) {
+          console.error('Login session error:', err);
           return next(err);
         }
 
+        console.log('Login successful for user:', user.username);
         return res.json({
+          ok: true,
           message: "Login successful",
           user,
         });
@@ -168,12 +202,21 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/logout", (req, res) => {
+    const wasAuthenticated = req.isAuthenticated();
     req.logout((err) => {
       if (err) {
-        return res.status(500).send("Logout failed");
+        console.error('Logout error:', err);
+        return res.status(500).json({
+          ok: false,
+          message: "Logout failed"
+        });
       }
 
-      res.json({ message: "Logout successful" });
+      console.log('Logout successful, was authenticated:', wasAuthenticated);
+      res.json({
+        ok: true,
+        message: "Logout successful"
+      });
     });
   });
 
