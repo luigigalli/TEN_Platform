@@ -81,7 +81,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const isOwner = trip.userId === (req.user as any).id;
-      if (!isOwner && !(trip.collaborationSettings as any)?.canInvite) {
+      if (!isOwner && !trip.collaborationSettings.canInvite) {
         return res.status(403).send("You don't have permission to invite members");
       }
 
@@ -113,14 +113,22 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Create trip member
+      const result = insertTripMemberSchema.safeParse({
+        tripId,
+        userId: invitedUser.id,
+        role: "member",
+        status: "pending"
+      });
+
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
+        );
+      }
+
       const [member] = await db
         .insert(tripMembers)
-        .values({
-          tripId,
-          userId: invitedUser.id,
-          role: "member",
-          status: "pending"
-        })
+        .values(result.data)
         .returning();
 
       // Create activity
@@ -134,96 +142,6 @@ export function registerRoutes(app: Express): Server {
       res.json(member);
     } catch (error: any) {
       console.error('Trip member creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Messages endpoints with proper type handling
-  app.post("/api/messages", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      console.log('Processing message:', req.body);
-      const messageData = {
-        ...req.body,
-        senderId: (req.user as any).id,
-        status: 'unread' as const,
-      };
-
-      const result = insertMessageSchema.safeParse(messageData);
-
-      if (!result.success) {
-        console.error('Message validation error:', result.error);
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
-      }
-
-      const [message] = await db
-        .insert(messages)
-        .values(result.data)
-        .returning();
-
-      console.log('Message created successfully:', message);
-      res.json(message);
-    } catch (error: any) {
-      console.error('Message creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Trips creation with proper type handling
-  app.post("/api/trips", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const result = insertTripSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
-      }
-
-      const [trip] = await db
-        .insert(trips)
-        .values({
-          ...result.data,
-          userId: (req.user as any).id,
-          collaborationSettings: {
-            canInvite: false,
-            canEdit: false,
-            canComment: true
-          }
-        })
-        .returning();
-
-      res.json(trip);
-    } catch (error: any) {
-      console.error('Trip creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.get("/api/trips/:tripId/activities", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const tripId = parseInt(req.params.tripId);
-      const activities = await db
-        .select()
-        .from(tripActivities)
-        .where(eq(tripActivities.tripId, tripId))
-        .orderBy(desc(tripActivities.createdAt));
-
-      res.json(activities);
-    } catch (error: any) {
-      console.error('Trip activities fetch error:', error);
       res.status(500).send(error.message);
     }
   });
@@ -270,6 +188,135 @@ export function registerRoutes(app: Express): Server {
       res.json(updatedTrip);
     } catch (error: any) {
       console.error('Trip settings update error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Trip listing endpoint
+  app.get("/api/trips", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const userId = (req.user as any).id;
+
+      // Get trips where user is owner or member
+      const userTrips = await db
+        .select()
+        .from(trips)
+        .where(
+          or(
+            eq(trips.userId, userId),
+            eq(tripMembers.userId, userId)
+          )
+        )
+        .leftJoin(tripMembers, eq(trips.id, tripMembers.tripId))
+        .orderBy(desc(trips.createdAt));
+
+      res.json(userTrips);
+    } catch (error: any) {
+      console.error('Trips fetch error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Trip creation endpoint
+  app.post("/api/trips", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const result = insertTripSchema.safeParse({
+        ...req.body,
+        userId: (req.user as any).id,
+        collaborationSettings: {
+          canInvite: false,
+          canEdit: false,
+          canComment: true
+        }
+      });
+
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
+        );
+      }
+
+      const [trip] = await db
+        .insert(trips)
+        .values(result.data)
+        .returning();
+
+      // Create initial activity
+      await db.insert(tripActivities).values({
+        tripId: trip.id,
+        createdBy: (req.user as any).id,
+        type: "trip_created",
+        content: "created the trip"
+      });
+
+      res.json(trip);
+    } catch (error: any) {
+      console.error('Trip creation error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Messages endpoints with proper type handling
+  app.post("/api/messages", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      console.log('Processing message:', req.body);
+      const messageData = {
+        ...req.body,
+        senderId: (req.user as any).id,
+        status: 'unread' as const,
+      };
+
+      const result = insertMessageSchema.safeParse(messageData);
+
+      if (!result.success) {
+        console.error('Message validation error:', result.error);
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
+        );
+      }
+
+      const [message] = await db
+        .insert(messages)
+        .values(result.data)
+        .returning();
+
+      console.log('Message created successfully:', message);
+      res.json(message);
+    } catch (error: any) {
+      console.error('Message creation error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+
+  app.get("/api/trips/:tripId/activities", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const tripId = parseInt(req.params.tripId);
+      const activities = await db
+        .select()
+        .from(tripActivities)
+        .where(eq(tripActivities.tripId, tripId))
+        .orderBy(desc(tripActivities.createdAt));
+
+      res.json(activities);
+    } catch (error: any) {
+      console.error('Trip activities fetch error:', error);
       res.status(500).send(error.message);
     }
   });
@@ -446,16 +493,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Trips endpoints
-  app.get("/api/trips", async (_req, res) => {
-    try {
-      const userTrips = await db.select().from(trips);
-      res.json(userTrips);
-    } catch (error: any) {
-      console.error('Trips fetch error:', error);
-      res.status(500).send(error.message);
-    }
-  });
 
   // Posts endpoints
   app.get("/api/posts", async (_req, res) => {
