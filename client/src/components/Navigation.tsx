@@ -42,7 +42,7 @@ export default function Navigation({ user }: { user: User }) {
                 <Link href="/profile">
                   <div className="flex items-center gap-2 cursor-pointer">
                     <Avatar>
-                      <AvatarImage src={user.avatar} />
+                      {user.avatar && <AvatarImage src={user.avatar} alt={user.username} />}
                       <AvatarFallback>
                         {user.username.charAt(0).toUpperCase()}
                       </AvatarFallback>
