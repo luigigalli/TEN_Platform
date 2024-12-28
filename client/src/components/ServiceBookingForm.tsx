@@ -5,6 +5,16 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import type { Service, InsertBooking } from "@db/schema";
 import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const bookingSchema = z.object({
+  serviceId: z.number(),
+  startDate: z.string().min(1, "Date is required"),
+  totalPrice: z.number(),
+  status: z.string(),
+  notes: z.string().optional(),
+});
 
 interface ServiceBookingFormProps {
   service: Service;
@@ -14,23 +24,29 @@ interface ServiceBookingFormProps {
 export default function ServiceBookingForm({ service, onSuccess }: ServiceBookingFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  
-  const form = useForm<InsertBooking>({
+
+  const form = useForm<z.infer<typeof bookingSchema>>({
+    resolver: zodResolver(bookingSchema),
     defaultValues: {
       serviceId: service.id,
       startDate: "",
-      totalPrice: service.price,
+      totalPrice: Number(service.price),
       status: "pending",
+      notes: "",
     },
   });
 
-  const onSubmit = async (data: InsertBooking) => {
+  const onSubmit = async (data: z.infer<typeof bookingSchema>) => {
     try {
       setIsSubmitting(true);
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          totalPrice: Number(data.totalPrice),
+          startDate: new Date(data.startDate).toISOString(),
+        }),
         credentials: "include",
       });
 
@@ -39,6 +55,10 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
       }
 
       onSuccess();
+      toast({
+        title: "Success",
+        description: "Booking confirmed successfully!",
+      });
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -59,10 +79,15 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
           type="date"
           {...form.register("startDate", { required: true })}
         />
+        {form.formState.errors.startDate && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.startDate.message}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="notes">Special Requests</Label>
+        <Label htmlFor="notes">Special Requests (Optional)</Label>
         <Input
           id="notes"
           {...form.register("notes")}
@@ -71,8 +96,11 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
       </div>
 
       <div className="pt-4">
+        <p className="text-sm text-muted-foreground mb-4">
+          Total Price: ${Number(service.price).toFixed(2)}
+        </p>
         <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? "Booking..." : "Confirm Booking"}
+          {isSubmitting ? "Processing..." : "Confirm Booking"}
         </Button>
       </div>
     </form>
