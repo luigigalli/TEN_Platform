@@ -10,7 +10,8 @@ import { z } from "zod";
 
 const bookingSchema = z.object({
   serviceId: z.number(),
-  startDate: z.string().min(1, "Date is required"),
+  startDate: z.string().min(1, "Start date is required"),
+  endDate: z.string().nullable(),
   totalPrice: z.number(),
   status: z.string(),
   notes: z.string().optional(),
@@ -30,6 +31,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
     defaultValues: {
       serviceId: service.id,
       startDate: "",
+      endDate: null,
       totalPrice: Number(service.price),
       status: "pending",
       notes: "",
@@ -39,13 +41,17 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
   const onSubmit = async (data: z.infer<typeof bookingSchema>) => {
     try {
       setIsSubmitting(true);
+      console.log("Submitting booking:", {
+        ...data,
+        totalPrice: Number(service.price),
+      });
+
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          totalPrice: Number(data.totalPrice),
-          startDate: new Date(data.startDate).toISOString(),
+          totalPrice: Number(service.price),
         }),
         credentials: "include",
       });
@@ -60,6 +66,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
         description: "Booking confirmed successfully!",
       });
     } catch (error: any) {
+      console.error("Booking error:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -73,7 +80,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="startDate">Date</Label>
+        <Label htmlFor="startDate">Start Date</Label>
         <Input
           id="startDate"
           type="date"
@@ -84,6 +91,15 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
             {form.formState.errors.startDate.message}
           </p>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="endDate">End Date (Optional)</Label>
+        <Input
+          id="endDate"
+          type="date"
+          {...form.register("endDate")}
+        />
       </div>
 
       <div className="space-y-2">

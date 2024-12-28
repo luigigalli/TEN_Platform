@@ -66,10 +66,7 @@ export function registerRoutes(app: Express): Server {
 
     try {
       console.log('Processing booking request:', req.body);
-      const result = insertBookingSchema.safeParse({
-        ...req.body,
-        startDate: new Date(req.body.startDate),
-      });
+      const result = insertBookingSchema.safeParse(req.body);
 
       if (!result.success) {
         console.error('Booking validation error:', result.error);

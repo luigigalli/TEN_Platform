@@ -69,10 +69,20 @@ export const insertTripSchema = createInsertSchema(trips, {
 });
 
 export const insertServiceSchema = createInsertSchema(services);
-export const insertBookingSchema = createInsertSchema(bookings, {
+
+const bookingValidationSchema = z.object({
+  serviceId: z.number(),
   startDate: z.string().transform((str) => new Date(str)),
-  endDate: z.string().transform((str) => str ? new Date(str) : null),
+  endDate: z.string().nullable().transform((str) => str ? new Date(str) : null),
+  totalPrice: z.number().or(z.string()).transform((val) =>
+    typeof val === "string" ? parseFloat(val) : val
+  ),
+  status: z.string(),
+  notes: z.string().optional(),
 });
+
+export const insertBookingSchema = bookingValidationSchema;
+export const selectBookingSchema = createSelectSchema(bookings);
 
 export const insertPostSchema = createInsertSchema(posts);
 export const insertUserSchema = createInsertSchema(users);
@@ -87,4 +97,4 @@ export type InsertTrip = z.infer<typeof insertTripSchema>;
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
 export type InsertService = typeof services.$inferInsert;
-export type InsertBooking = typeof bookings.$inferInsert;
+export type InsertBooking = z.infer<typeof bookingValidationSchema>;
