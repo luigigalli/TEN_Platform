@@ -151,7 +151,9 @@ export default function TripPlanner() {
               <div
                 key={trip.id}
                 onClick={() => handleTripClick(trip)}
-                className="cursor-pointer transition-transform hover:scale-105"
+                className={`cursor-pointer transition-transform hover:scale-105 ${
+                  selectedTrip?.id === trip.id ? 'ring-2 ring-primary' : ''
+                }`}
               >
                 <TripCard trip={trip} user={user!} />
               </div>
@@ -161,9 +163,14 @@ export default function TripPlanner() {
 
         <div className="lg:col-span-1">
           {selectedTrip ? (
-            <div className="bg-card rounded-lg p-6 shadow-lg sticky top-6">
-              <h2 className="text-2xl font-semibold mb-6">Trip Collaboration</h2>
-              <TripCollaboration trip={selectedTrip} />
+            <div className="bg-card rounded-lg shadow-lg sticky top-6">
+              <div className="p-6 border-b">
+                <h2 className="text-2xl font-semibold">{selectedTrip.title}</h2>
+                <p className="text-muted-foreground mt-1">{selectedTrip.destination}</p>
+              </div>
+              <div className="p-6">
+                <TripCollaboration trip={selectedTrip} />
+              </div>
             </div>
           ) : (
             <div className="bg-card rounded-lg p-6 shadow-lg text-center text-muted-foreground">
