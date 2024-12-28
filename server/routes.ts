@@ -2,8 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { trips, posts, services, bookings, insertTripSchema, insertBookingSchema, insertServiceSchema } from "@db/schema";
+import { users, trips, posts, services, bookings, insertTripSchema, insertBookingSchema, insertServiceSchema } from "@db/schema";
 import { eq } from "drizzle-orm";
+import { createPaymentIntent, confirmPayment } from "./payment";
 
 export function registerRoutes(app: Express): Server {
   // Authentication logging middleware
@@ -80,13 +81,41 @@ export function registerRoutes(app: Express): Server {
         .values({
           ...result.data,
           userId: (req.user as any).id,
+          status: "pending_payment"
         })
         .returning();
 
       console.log('Booking created successfully:', booking[0]);
-      res.json(booking[0]);
+
+      // Create payment intent
+      const paymentIntent = await createPaymentIntent(booking[0].id);
+
+      res.json({
+        booking: booking[0],
+        clientSecret: paymentIntent.client_secret
+      });
     } catch (error: any) {
       console.error('Booking creation error:', error);
+      res.status(500).send(error.message);
+    }
+  });
+
+  // Payment endpoints
+  app.post("/api/payments/confirm", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const { bookingId, paymentIntentId } = req.body;
+      if (!bookingId || !paymentIntentId) {
+        return res.status(400).send("Missing bookingId or paymentIntentId");
+      }
+
+      const result = await confirmPayment(bookingId, paymentIntentId);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Payment confirmation error:', error);
       res.status(500).send(error.message);
     }
   });
@@ -158,23 +187,6 @@ export function registerRoutes(app: Express): Server {
       res.json(post[0]);
     } catch (error: any) {
       console.error('Post creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Expert contact endpoint
-  app.post("/api/experts/contact", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const { expertId, message } = req.body;
-      // In a real application, this would send an email or create a chat thread
-      // For now, we'll just return a success message
-      res.json({ success: true, message: "Contact request sent successfully" });
-    } catch (error: any) {
-      console.error('Expert contact error:', error);
       res.status(500).send(error.message);
     }
   });

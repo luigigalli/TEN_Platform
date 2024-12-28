@@ -3,10 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { usePayment } from "../hooks/use-payment";
 import type { Service, InsertBooking } from "@db/schema";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Loader2 } from "lucide-react";
 
 const bookingSchema = z.object({
   serviceId: z.number(),
@@ -25,6 +27,7 @@ interface ServiceBookingFormProps {
 export default function ServiceBookingForm({ service, onSuccess }: ServiceBookingFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { processPayment } = usePayment();
 
   const form = useForm<z.infer<typeof bookingSchema>>({
     resolver: zodResolver(bookingSchema),
@@ -46,6 +49,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
         totalPrice: Number(service.price),
       });
 
+      // Create booking
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -60,10 +64,30 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
         throw new Error(await response.text());
       }
 
+      const { booking, clientSecret } = await response.json();
+
+      // Process payment
+      await processPayment(clientSecret);
+
+      // Confirm payment
+      const confirmResponse = await fetch("/api/payments/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId: booking.id,
+          paymentIntentId: clientSecret.split("_secret_")[0],
+        }),
+        credentials: "include",
+      });
+
+      if (!confirmResponse.ok) {
+        throw new Error(await confirmResponse.text());
+      }
+
       onSuccess();
       toast({
         title: "Success",
-        description: "Booking confirmed successfully!",
+        description: "Booking confirmed and payment processed successfully!",
       });
     } catch (error: any) {
       console.error("Booking error:", error);
@@ -116,7 +140,14 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
           Total Price: ${Number(service.price).toFixed(2)}
         </p>
         <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? "Processing..." : "Confirm Booking"}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            "Book and Pay Now"
+          )}
         </Button>
       </div>
     </form>
