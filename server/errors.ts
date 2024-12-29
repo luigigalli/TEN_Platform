@@ -1,3 +1,8 @@
 // This file exists to maintain backward compatibility with existing imports
-export { ServerError } from './errors/base';
-export { EnvironmentConfigError, PortConfigError, DatabaseConfigError } from './errors/environment';
+// Export error classes from their proper locations
+export { ServerError } from './errors/types';
+export { 
+  EnvironmentConfigError,
+  PortConfigError,
+  DatabaseConfigError 
+} from './errors/environment';
