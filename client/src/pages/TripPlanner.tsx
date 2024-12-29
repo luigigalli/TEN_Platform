@@ -14,24 +14,95 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import type { Trip } from "@db/schema";
 import TripCard from "../components/TripCard";
 import TripCollaboration from "../components/TripCollaboration";
 
+const tripSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  destination: z.string().min(1, "Destination is required"),
+  startDate: z.string().min(1, "Start date is required"),
+  endDate: z.string().min(1, "End date is required"),
+  isPrivate: z.boolean().default(false),
+  collaborationSettings: z.object({
+    canInvite: z.boolean().default(false),
+    canEdit: z.boolean().default(false),
+    canComment: z.boolean().default(true),
+  }),
+});
+
+type TripFormData = z.infer<typeof tripSchema>;
+
+interface LoadingSkeletonProps {
+  count?: number;
+}
+
+function LoadingSkeleton({ count = 4 }: LoadingSkeletonProps) {
+  return (
+    <div className="container mx-auto p-6">
+      <div className="animate-pulse">
+        <div className="h-8 bg-muted rounded w-48 mb-6"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {Array.from({ length: count }).map((_, index) => (
+            <div key={index} className="h-48 bg-muted rounded-lg"></div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface TripListProps {
+  trips: Trip[];
+  selectedTripId: number | null;
+  onTripClick: (trip: Trip) => void;
+  user: NonNullable<ReturnType<typeof useUser>["user"]>;
+}
+
+function TripList({ trips, selectedTripId, onTripClick, user }: TripListProps) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {trips.map((trip) => (
+        <div
+          key={trip.id}
+          onClick={() => onTripClick(trip)}
+          className={`cursor-pointer transition-transform hover:scale-105 ${
+            selectedTripId === trip.id ? 'ring-2 ring-primary' : ''
+          }`}
+          role="button"
+          aria-selected={selectedTripId === trip.id}
+          tabIndex={0}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              onTripClick(trip);
+            }
+          }}
+        >
+          <TripCard trip={trip} user={user} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function TripPlanner() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
-  const { trips, createTrip, isLoading } = useTrips();
+  const { trips = [], createTrip, isLoading } = useTrips();
   const { user } = useUser();
   const { toast } = useToast();
 
-  const form = useForm<Partial<Trip>>({
+  const form = useForm<TripFormData>({
+    resolver: zodResolver(tripSchema),
     defaultValues: {
       title: "",
       description: "",
       destination: "",
-      startDate: null,
-      endDate: null,
+      startDate: "",
+      endDate: "",
       isPrivate: false,
       collaborationSettings: {
         canInvite: false,
@@ -41,7 +112,7 @@ export default function TripPlanner() {
     },
   });
 
-  const onSubmit = async (data: Partial<Trip>) => {
+  const onSubmit = async (data: TripFormData) => {
     try {
       await createTrip(data);
       setIsDialogOpen(false);
@@ -50,33 +121,30 @@ export default function TripPlanner() {
         title: "Success",
         description: "Trip created successfully!",
       });
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: errorMessage,
       });
     }
   };
 
   const handleTripClick = (trip: Trip) => {
-    console.log('Trip clicked:', trip);
     setSelectedTrip(trip);
   };
 
-  if (isLoading) {
+  if (!user) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-muted rounded w-48 mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[1, 2, 3, 4].map((n) => (
-              <div key={n} className="h-48 bg-muted rounded-lg"></div>
-            ))}
-          </div>
-        </div>
+      <div className="text-center py-8" role="alert">
+        <p className="text-destructive">Please log in to view and create trips</p>
       </div>
     );
+  }
+
+  if (isLoading) {
+    return <LoadingSkeleton />;
   }
 
   return (
@@ -96,16 +164,28 @@ export default function TripPlanner() {
                 <Label htmlFor="title">Title</Label>
                 <Input
                   id="title"
+                  aria-invalid={!!form.formState.errors.title}
                   {...form.register("title")}
                 />
+                {form.formState.errors.title && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.title.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="destination">Destination</Label>
                 <Input
                   id="destination"
+                  aria-invalid={!!form.formState.errors.destination}
                   {...form.register("destination")}
                 />
+                {form.formState.errors.destination && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.destination.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -122,8 +202,14 @@ export default function TripPlanner() {
                   <Input
                     id="startDate"
                     type="date"
+                    aria-invalid={!!form.formState.errors.startDate}
                     {...form.register("startDate")}
                   />
+                  {form.formState.errors.startDate && (
+                    <p className="text-sm text-destructive">
+                      {form.formState.errors.startDate.message}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -131,13 +217,23 @@ export default function TripPlanner() {
                   <Input
                     id="endDate"
                     type="date"
+                    aria-invalid={!!form.formState.errors.endDate}
                     {...form.register("endDate")}
                   />
+                  {form.formState.errors.endDate && (
+                    <p className="text-sm text-destructive">
+                      {form.formState.errors.endDate.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <Button type="submit" className="w-full">
-                Create Trip
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={form.formState.isSubmitting}
+              >
+                {form.formState.isSubmitting ? "Creating..." : "Create Trip"}
               </Button>
             </form>
           </DialogContent>
@@ -146,19 +242,12 @@ export default function TripPlanner() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {trips?.map((trip) => (
-              <div
-                key={trip.id}
-                onClick={() => handleTripClick(trip)}
-                className={`cursor-pointer transition-transform hover:scale-105 ${
-                  selectedTrip?.id === trip.id ? 'ring-2 ring-primary' : ''
-                }`}
-              >
-                <TripCard trip={trip} user={user!} />
-              </div>
-            ))}
-          </div>
+          <TripList
+            trips={trips}
+            selectedTripId={selectedTrip?.id ?? null}
+            onTripClick={handleTripClick}
+            user={user}
+          />
         </div>
 
         <div className="lg:col-span-1">
@@ -166,14 +255,20 @@ export default function TripPlanner() {
             <div className="bg-card rounded-lg shadow-lg sticky top-6">
               <div className="p-6 border-b">
                 <h2 className="text-2xl font-semibold">{selectedTrip.title}</h2>
-                <p className="text-muted-foreground mt-1">{selectedTrip.destination}</p>
+                <p className="text-muted-foreground mt-1">
+                  {selectedTrip.destination}
+                </p>
               </div>
               <div className="p-6">
                 <TripCollaboration trip={selectedTrip} />
               </div>
             </div>
           ) : (
-            <div className="bg-card rounded-lg p-6 shadow-lg text-center text-muted-foreground">
+            <div 
+              className="bg-card rounded-lg p-6 shadow-lg text-center text-muted-foreground"
+              role="region"
+              aria-label="Trip details"
+            >
               Select a trip to view and manage collaboration settings
             </div>
           )}
