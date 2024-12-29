@@ -10,15 +10,21 @@ interface TripCardProps {
 }
 
 export default function TripCard({ trip, user }: TripCardProps) {
+  // Helper function to safely format dates
+  const formatDate = (date: Date | null) => {
+    if (!date) return "";
+    return format(new Date(date), "MMM d, yyyy");
+  };
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex justify-between items-start">
           <CardTitle className="text-xl">{trip.title}</CardTitle>
           <Avatar>
-            <AvatarImage src={user.avatar} />
+            <AvatarImage src={user.avatar ?? undefined} />
             <AvatarFallback>
-              {user.username.charAt(0).toUpperCase()}
+              {user.username?.[0]?.toUpperCase() ?? "?"}
             </AvatarFallback>
           </Avatar>
         </div>
@@ -33,13 +39,12 @@ export default function TripCard({ trip, user }: TripCardProps) {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <CalendarIcon className="h-4 w-4" />
               <span>
-                {format(new Date(trip.startDate), "MMM d, yyyy")}
-                {trip.endDate &&
-                  ` - ${format(new Date(trip.endDate), "MMM d, yyyy")}`}
+                {formatDate(trip.startDate)}
+                {trip.endDate && ` - ${formatDate(trip.endDate)}`}
               </span>
             </div>
           )}
-          <p className="text-sm mt-2">{trip.description}</p>
+          <p className="text-sm mt-2">{trip.description ?? "No description available"}</p>
         </div>
       </CardContent>
     </Card>
