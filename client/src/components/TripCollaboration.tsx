@@ -27,6 +27,13 @@ interface TripCollaborationProps {
   trip: Trip;
 }
 
+// Default collaboration settings
+const DEFAULT_SETTINGS: CollaborationSettings = {
+  canInvite: false,
+  canEdit: false,
+  canComment: true,
+};
+
 export default function TripCollaboration({ trip }: TripCollaborationProps) {
   const [inviteEmail, setInviteEmail] = useState("");
   const { toast } = useToast();
@@ -50,239 +57,247 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
     queryKey: ["/api/users"],
   });
 
-  // Mutations for trip collaboration
+  // Helper function to safely get member details
+  const getMemberDetails = (userId: number | null): User | undefined => {
+    if (!userId) return undefined;
+    return users.find((u) => u.id === userId);
+  };
+
+  // Helper function to safely format dates
+  const formatDate = (date: Date | null): string => {
+    if (!date) return '';
+    return new Date(date).toLocaleDateString();
+  };
+
+  // Mutations with proper error handling
   const inviteMember = useMutation({
-    mutationFn: async (email: string) => {
-      const res = await fetch(`/api/trips/${trip.id}/members`, {
+    mutationFn: async () => {
+      const response = await fetch(`/api/trips/${trip.id}/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-        credentials: "include",
+        body: JSON.stringify({ email: inviteEmail }),
       });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-
-      return res.json();
+      if (!response.ok) throw new Error("Failed to invite member");
+      return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: ["/api/trips", trip.id, "members"] 
-      });
-      toast({
-        title: "Success",
-        description: "Invitation sent successfully",
-      });
       setInviteEmail("");
-    },
-    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/trips", trip.id, "members"] });
       toast({
-        variant: "destructive",
+        title: "Invitation sent",
+        description: `Invitation sent to ${inviteEmail}`,
+      });
+    },
+    onError: (error) => {
+      toast({
         title: "Error",
         description: error.message,
+        variant: "destructive",
       });
     },
   });
 
-  const updateCollaborationSettings = useMutation({
-    mutationFn: async (settings: CollaborationSettings) => {
-      const res = await fetch(`/api/trips/${trip.id}/settings`, {
-        method: "PATCH",
+  // Update collaboration settings with proper type checking
+  const updateSettings = useMutation({
+    mutationFn: async (newSettings: Partial<CollaborationSettings>) => {
+      const currentSettings = trip.collaborationSettings ?? DEFAULT_SETTINGS;
+      const updatedSettings: CollaborationSettings = {
+        ...currentSettings,
+        ...newSettings,
+      };
+
+      const response = await fetch(`/api/trips/${trip.id}/settings`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ collaborationSettings: settings }),
-        credentials: "include",
+        body: JSON.stringify(updatedSettings),
       });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-
-      return res.json();
+      if (!response.ok) throw new Error("Failed to update settings");
+      return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/trips"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trips", trip.id] });
       toast({
-        title: "Success",
-        description: "Collaboration settings updated",
+        title: "Settings updated",
+        description: "Collaboration settings have been updated",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
 
   const handleInvite = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail.trim()) return;
-    inviteMember.mutate(inviteEmail);
+    if (!inviteEmail.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter an email address",
+        variant: "destructive",
+      });
+      return;
+    }
+    inviteMember.mutate();
   };
 
-  const getMemberDetails = (memberId: number) => {
-    return users.find(u => u.id === memberId);
-  };
-
-  const isOwner = trip.userId === user?.id;
+  const currentSettings = trip.collaborationSettings ?? DEFAULT_SETTINGS;
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="members">
-        <TabsList className="w-full">
-          <TabsTrigger value="members" className="flex-1">
-            <Users className="h-4 w-4 mr-2" />
-            Members
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="flex-1">
-            <Activity className="h-4 w-4 mr-2" />
-            Activity
-          </TabsTrigger>
-          {isOwner && (
-            <TabsTrigger value="settings" className="flex-1">
-              <Settings2 className="h-4 w-4 mr-2" />
-              Settings
-            </TabsTrigger>
-          )}
-        </TabsList>
+    <Tabs defaultValue="members" className="w-full">
+      <TabsList>
+        <TabsTrigger value="members">
+          <Users className="h-4 w-4 mr-2" />
+          Members
+        </TabsTrigger>
+        <TabsTrigger value="settings">
+          <Settings2 className="h-4 w-4 mr-2" />
+          Settings
+        </TabsTrigger>
+        <TabsTrigger value="activity">
+          <Activity className="h-4 w-4 mr-2" />
+          Activity
+        </TabsTrigger>
+      </TabsList>
 
-        <TabsContent value="members" className="space-y-4">
-          {isOwner && (
-            <form onSubmit={handleInvite} className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  type="email"
-                  placeholder="Enter email to invite"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                />
-              </div>
-              <Button type="submit" disabled={inviteMember.isPending}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Invite
-              </Button>
-            </form>
-          )}
-
-          <ScrollArea className="h-[300px]">
-            <div className="space-y-4">
-              {members.map((member) => {
-                const memberDetails = getMemberDetails(member.userId);
-                return (
-                  <div
-                    key={member.id}
-                    className="flex items-center justify-between p-2 rounded-lg border"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={memberDetails?.avatar || undefined} />
-                        <AvatarFallback>
-                          {memberDetails?.username?.[0]?.toUpperCase() || '?'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{memberDetails?.username || 'Unknown User'}</p>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {member.role}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {new Date(member.joinedAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                );
-              })}
+      <TabsContent value="members" className="space-y-4">
+        {currentSettings.canInvite && (
+          <form onSubmit={handleInvite} className="flex gap-4">
+            <div className="flex-1">
+              <Label htmlFor="email">Invite by email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter email address"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
             </div>
-          </ScrollArea>
-        </TabsContent>
+            <Button type="submit" disabled={inviteMember.isPending}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Invite
+            </Button>
+          </form>
+        )}
 
-        <TabsContent value="activity" className="space-y-4">
-          <ScrollArea className="h-[300px]">
-            <div className="space-y-4">
-              {activities.map((activity) => {
-                const activityUser = getMemberDetails(activity.createdBy);
-                return (
-                  <div
-                    key={activity.id}
-                    className="flex items-start gap-3 p-2 rounded-lg border"
-                  >
-                    <Avatar className="mt-1">
-                      <AvatarImage src={activityUser?.avatar || undefined} />
+        <ScrollArea className="h-[300px]">
+          <div className="space-y-4">
+            {members.map((member) => {
+              const memberDetails = getMemberDetails(member.userId);
+              return (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between p-2 rounded-lg border"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar>
+                      <AvatarImage src={memberDetails?.avatar ?? undefined} />
                       <AvatarFallback>
-                        {activityUser?.username?.[0]?.toUpperCase() || '?'}
+                        {memberDetails?.username?.[0]?.toUpperCase() ?? '?'}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{activityUser?.username || 'Unknown User'}</p>
-                        <span className="text-sm text-muted-foreground">
-                          <Clock className="h-3 w-3 inline mr-1" />
-                          {new Date(activity.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="text-sm mt-1">{activity.content}</p>
+                    <div>
+                      <p className="font-medium">{memberDetails?.username ?? 'Unknown User'}</p>
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {member.role}
+                      </p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        </TabsContent>
+                  <div className="text-sm text-muted-foreground">
+                    {formatDate(member.joinedAt)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </TabsContent>
 
-        {isOwner && (
-          <TabsContent value="settings" className="space-y-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Allow Members to Invite</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Members can invite other people to join the trip
-                  </p>
-                </div>
-                <Switch
-                  checked={trip.collaborationSettings.canInvite}
-                  onCheckedChange={(checked) =>
-                    updateCollaborationSettings.mutate({
-                      ...trip.collaborationSettings,
-                      canInvite: checked,
-                    })
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Allow Members to Edit</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Members can edit trip details and itinerary
-                  </p>
-                </div>
-                <Switch
-                  checked={trip.collaborationSettings.canEdit}
-                  onCheckedChange={(checked) =>
-                    updateCollaborationSettings.mutate({
-                      ...trip.collaborationSettings,
-                      canEdit: checked,
-                    })
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Allow Comments</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Members can leave comments and suggestions
-                  </p>
-                </div>
-                <Switch
-                  checked={trip.collaborationSettings.canComment}
-                  onCheckedChange={(checked) =>
-                    updateCollaborationSettings.mutate({
-                      ...trip.collaborationSettings,
-                      canComment: checked,
-                    })
-                  }
-                />
-              </div>
+      <TabsContent value="settings" className="space-y-4">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Allow Invites</Label>
+              <p className="text-sm text-muted-foreground">
+                Members can invite others to join
+              </p>
             </div>
-          </TabsContent>
-        )}
-      </Tabs>
-    </div>
+            <Switch
+              checked={currentSettings.canInvite}
+              onCheckedChange={(checked) =>
+                updateSettings.mutate({ canInvite: checked })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Allow Editing</Label>
+              <p className="text-sm text-muted-foreground">
+                Members can edit trip details
+              </p>
+            </div>
+            <Switch
+              checked={currentSettings.canEdit}
+              onCheckedChange={(checked) =>
+                updateSettings.mutate({ canEdit: checked })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Allow Comments</Label>
+              <p className="text-sm text-muted-foreground">
+                Members can leave comments
+              </p>
+            </div>
+            <Switch
+              checked={currentSettings.canComment}
+              onCheckedChange={(checked) =>
+                updateSettings.mutate({ canComment: checked })
+              }
+            />
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="activity" className="space-y-4">
+        <ScrollArea className="h-[300px]">
+          <div className="space-y-4">
+            {activities.map((activity) => {
+              const activityUser = getMemberDetails(activity.createdBy);
+              return (
+                <div
+                  key={activity.id}
+                  className="flex items-center justify-between p-2 rounded-lg border"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar>
+                      <AvatarImage src={activityUser?.avatar ?? undefined} />
+                      <AvatarFallback>
+                        {activityUser?.username?.[0]?.toUpperCase() ?? '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">
+                        {activityUser?.username ?? 'Unknown User'}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {activity.action}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Clock className="h-4 w-4 mr-1" />
+                    {formatDate(activity.createdAt)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </TabsContent>
+    </Tabs>
   );
 }
