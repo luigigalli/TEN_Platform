@@ -14,3 +14,5 @@ To start development:
 
 ## Contributors
 - Luigi Galli (@luigigalli)
+
+Last updated: December 29, 2023
