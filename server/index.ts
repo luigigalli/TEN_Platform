@@ -3,7 +3,10 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
 import { config } from "./config";
-import { ServerError } from "./errors";  // Updated import path
+import { ServerError } from "./errors/types";  
+
+// Re-export ServerError for other modules
+export { ServerError };
 
 const app = express();
 
