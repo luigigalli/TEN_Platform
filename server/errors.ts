@@ -1,13 +1,2 @@
-/**
- * Custom error class for server-related errors
- */
-export class ServerError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly statusCode: number = 500,
-  ) {
-    super(message);
-    this.name = 'ServerError';
-  }
-}
+// This file is deprecated. Import errors from './errors/index.ts' instead.
+export { ServerError, EnvironmentConfigError, PortConfigError, DatabaseConfigError } from './errors/index';
