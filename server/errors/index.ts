@@ -1,8 +1,10 @@
 /**
  * Centralized error handling for the server
- * Re-exports all error classes
+ * All error classes should be exported from this file
  */
+
+// Re-export the base error class
 export { ServerError } from './base';
 
-// Export environment-specific errors
+// Re-export environment specific errors
 export { EnvironmentConfigError, PortConfigError, DatabaseConfigError } from './environment';

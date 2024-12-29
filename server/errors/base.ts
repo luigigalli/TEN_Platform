@@ -7,9 +7,12 @@ export class ServerError extends Error {
     message: string,
     public readonly code: string,
     public readonly statusCode: number = 500,
-    public readonly details?: Record<string, unknown>
+    public readonly cause?: Error
   ) {
     super(message);
     this.name = 'ServerError';
+    if (cause) {
+      this.cause = cause;
+    }
   }
 }
