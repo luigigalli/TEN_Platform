@@ -53,13 +53,14 @@ function buildConfig(): Config {
       server: {
         port,
         host,
-        corsOrigins: [
-          'http://localhost:5000',
-          'http://127.0.0.1:5000',
-          'http://0.0.0.0:5000',
-          /\.repl\.co$/,
-          ...(isDevelopment ? ['*'] : []),
-        ],
+        corsOrigins: isDevelopment 
+          ? ['*']  // Allow all origins in development
+          : [
+              'http://localhost:5000',
+              'http://127.0.0.1:5000',
+              'http://0.0.0.0:5000',
+              /\.repl\.co$/,
+            ],
       },
       database: {
         url: process.env.DATABASE_URL || '',
