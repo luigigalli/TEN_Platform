@@ -5,7 +5,8 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import viteConfig from "../../vite.config";
-import { ServerError } from "../errors";  // Updated import path
+import { ServerError } from "../errors";
+import { config } from "../config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +21,7 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
   try {
     const vite = await createViteServer({
       ...viteConfig,
+      configFile: false, // Disable loading vite.config.ts to avoid conflicts
       server: {
         middlewareMode: true,
         hmr: {
@@ -27,6 +29,16 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
         },
       },
       appType: "custom",
+      customLogger: {
+        ...viteLogger,
+        error: (msg, options) => {
+          if (msg.includes("[TypeScript] Found 0 errors")) {
+            console.log(`${new Date().toLocaleTimeString()} [tsc] No errors found`);
+            return;
+          }
+          viteLogger.error(msg, options);
+        },
+      },
     });
 
     // Use Vite's connect instance as middleware
@@ -39,24 +51,31 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
 
         const url = req.originalUrl;
 
-        // Send static files through Vite
-        if (process.env.NODE_ENV === 'production') {
-          // Serve static files in production
-          const clientDist = path.resolve(__dirname, '..', '..', 'client', 'dist');
+        // Handle different environments
+        if (config.env === 'production') {
+          const clientDist = path.resolve(__dirname, '..', '..', 'dist', 'public');
           if (fs.existsSync(clientDist)) {
             app.use(express.static(clientDist));
           }
 
-          // Always serve index.html for client-side routing
           const indexPath = path.resolve(clientDist, 'index.html');
           if (fs.existsSync(indexPath)) {
             res.sendFile(indexPath);
           } else {
-            res.status(404).send('Not found');
+            throw new ServerError(
+              "Production build files not found. Run 'npm run build' first.",
+              "BUILD_NOT_FOUND",
+              500
+            );
           }
         } else {
           // Development mode - let Vite handle it
-          await vite.middlewares(req, res, next);
+          const template = fs.readFileSync(
+            path.resolve(__dirname, '..', '..', 'client', 'index.html'),
+            'utf-8'
+          );
+          const transformedTemplate = await vite.transformIndexHtml(url, template);
+          res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedTemplate);
         }
       } catch (e) {
         const error = e as Error;
@@ -79,11 +98,11 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
  * Handle static file serving in production
  */
 export function handleStaticFiles(app: Express): void {
-  const distPath = path.resolve(__dirname, "..", "..", "public");
+  const distPath = path.resolve(__dirname, "..", "..", "dist", "public");
 
   if (!fs.existsSync(distPath)) {
     throw new ServerError(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+      `Could not find the build directory: ${distPath}. Run 'npm run build' first.`,
       "BUILD_DIR_NOT_FOUND",
       500
     );
@@ -91,13 +110,13 @@ export function handleStaticFiles(app: Express): void {
 
   app.use(express.static(distPath));
 
-  // Fall through to index.html if the file doesn't exist
+  // Fall through to index.html for client-side routing
   app.use("*", (_req: Request, res: Response) => {
     const indexPath = path.resolve(distPath, "index.html");
 
     if (!fs.existsSync(indexPath)) {
       throw new ServerError(
-        "Index file not found",
+        "Index file not found in production build",
         "INDEX_NOT_FOUND",
         500
       );

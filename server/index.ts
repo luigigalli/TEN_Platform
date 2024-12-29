@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import cors from "cors";
-import { config, isDevelopment } from "./config";
+import { config } from "./config";
 import { ServerError } from "./errors";
 import { handleViteMiddleware, handleStaticFiles } from "./middleware/vite-handler";
 
@@ -78,18 +78,18 @@ async function initializeApp() {
         res.status(err.statusCode).json({ 
           error: err.message,
           code: err.code,
-          ...(isDevelopment ? { details: err.details } : {})
+          ...(config.env === 'development' ? { details: err.details } : {})
         });
       } else {
         res.status(500).json({ 
           error: 'Internal Server Error',
-          ...(isDevelopment ? { stack: err.stack } : {})
+          ...(config.env === 'development' ? { stack: err.stack } : {})
         });
       }
     });
 
-    // Set up environment-specific configuration
-    if (isDevelopment) {
+    // Set up environment-specific middleware
+    if (config.env === 'development') {
       await handleViteMiddleware(app, server);
     } else {
       handleStaticFiles(app);
@@ -116,7 +116,7 @@ async function initializeApp() {
           console.log(`${new Date().toLocaleTimeString()} [express] Client available at http://${config.server.host}:${config.server.port}`);
           resolve(true);
         })
-        .once('error', (error: NodeJS.ErrnoException) => {
+        .once('error', (error: Error) => {
           reject(error);
         });
     });
