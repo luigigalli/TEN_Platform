@@ -1,9 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
 import { config, isDevelopment } from "./config";
-import { ServerError } from "./utils/errors";
+import { ServerError } from "./errors/base-error";
+import { handleViteMiddleware, handleStaticFiles } from "./middleware/vite-handler";
 
 // Initialize Express application with proper error handling
 async function initializeApp() {
@@ -51,7 +51,7 @@ async function initializeApp() {
             logLine = logLine.slice(0, 79) + "…";
           }
 
-          log(logLine);
+          console.log(`${new Date().toLocaleTimeString()} [express] ${logLine}`);
         }
       });
 
@@ -90,9 +90,9 @@ async function initializeApp() {
 
     // Set up environment-specific configuration
     if (isDevelopment) {
-      await setupVite(app, server);
+      await handleViteMiddleware(app, server);
     } else {
-      serveStatic(app);
+      handleStaticFiles(app);
     }
 
     return { app, server };
@@ -111,9 +111,9 @@ async function initializeApp() {
     await new Promise((resolve, reject) => {
       server.listen(config.server.port, config.server.host)
         .once('listening', () => {
-          log(`Server running in ${config.env} mode`);
-          log(`API available at http://${config.server.host}:${config.server.port}/api`);
-          log(`Client available at http://${config.server.host}:${config.server.port}`);
+          console.log(`${new Date().toLocaleTimeString()} [express] Server running in ${config.env} mode`);
+          console.log(`${new Date().toLocaleTimeString()} [express] API available at http://${config.server.host}:${config.server.port}/api`);
+          console.log(`${new Date().toLocaleTimeString()} [express] Client available at http://${config.server.host}:${config.server.port}`);
           resolve(true);
         })
         .once('error', (error: NodeJS.ErrnoException) => {

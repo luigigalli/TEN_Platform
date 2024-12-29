@@ -1,23 +1,6 @@
-// Base error class with proper typing
-export class ServerError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string = 'SERVER_ERROR',
-    public readonly statusCode: number = 500,
-    public readonly details?: Record<string, unknown>
-  ) {
-    super(message);
-    this.name = 'ServerError';
-    Object.setPrototypeOf(this, new.target.prototype);
-  }
+// This file is deprecated.
+// All error definitions have been moved to base-error.ts
+// Update your imports to use:
+// import { ServerError } from './base-error';
 
-  toJSON() {
-    return {
-      name: this.name,
-      message: this.message,
-      code: this.code,
-      statusCode: this.statusCode,
-      details: this.details
-    };
-  }
-}
+throw new Error('This file is deprecated. Import error classes from ./base-error.ts instead.');
