@@ -14,14 +14,28 @@ const bookingSchema = z.object({
   serviceId: z.number(),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().nullable(),
-  totalPrice: z.number(),
-  status: z.string(),
+  totalPrice: z.number().positive("Price must be positive"),
+  status: z.enum(["pending", "confirmed", "cancelled"]),
   notes: z.string().optional(),
 });
+
+type BookingFormData = z.infer<typeof bookingSchema>;
 
 interface ServiceBookingFormProps {
   service: Service;
   onSuccess: () => void;
+}
+
+interface BookingResponse {
+  booking: {
+    id: number;
+    [key: string]: unknown;
+  };
+  clientSecret: string;
+}
+
+interface PaymentError extends Error {
+  message: string;
 }
 
 export default function ServiceBookingForm({ service, onSuccess }: ServiceBookingFormProps) {
@@ -30,25 +44,39 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
   const { toast } = useToast();
   const { processPayment } = usePayment();
 
-  const form = useForm<z.infer<typeof bookingSchema>>({
+  const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
       serviceId: service.id,
       startDate: "",
       endDate: null,
-      totalPrice: Number(service.price),
+      totalPrice: Number(service.price) || 0,
       status: "pending",
       notes: "",
     },
   });
 
-  const onSubmit = async (data: z.infer<typeof bookingSchema>) => {
+  const handlePaymentConfirmation = async (bookingId: number, paymentIntentId: string) => {
+    const confirmResponse = await fetch("/api/payments/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bookingId,
+        paymentIntentId,
+      }),
+      credentials: "include",
+    });
+
+    if (!confirmResponse.ok) {
+      throw new Error(await confirmResponse.text());
+    }
+
+    return confirmResponse.json();
+  };
+
+  const onSubmit = async (data: BookingFormData) => {
     try {
       setIsSubmitting(true);
-      console.log("Creating booking:", {
-        ...data,
-        totalPrice: Number(service.price),
-      });
 
       // Create booking
       const response = await fetch("/api/bookings", {
@@ -56,7 +84,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          totalPrice: Number(service.price),
+          totalPrice: Number(service.price) || 0,
         }),
         credentials: "include",
       });
@@ -65,53 +93,46 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
         throw new Error(await response.text());
       }
 
-      const { booking, clientSecret } = await response.json();
-      console.log("Booking created:", booking);
+      const { booking, clientSecret } = (await response.json()) as BookingResponse;
 
       // Process payment
       try {
         await processPayment(clientSecret);
-        console.log("Payment processed successfully");
-
-        // Confirm payment
-        const confirmResponse = await fetch("/api/payments/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bookingId: booking.id,
-            paymentIntentId: clientSecret.split("_secret_")[0],
-          }),
-          credentials: "include",
-        });
-
-        if (!confirmResponse.ok) {
-          throw new Error(await confirmResponse.text());
+        const paymentIntentId = clientSecret.split("_secret_")[0];
+        
+        if (!paymentIntentId) {
+          throw new Error("Invalid payment intent ID");
         }
 
+        await handlePaymentConfirmation(booking.id, paymentIntentId);
+
         setIsSuccess(true);
-        setTimeout(() => {
-          onSuccess();
-        }, 2000); // Show success state for 2 seconds before closing
+        setTimeout(onSuccess, 2000); // Show success state for 2 seconds before closing
 
         toast({
           title: "Success",
           description: "Booking confirmed and payment processed successfully!",
         });
-      } catch (error: any) {
-        console.error("Payment processing error:", error);
-        throw new Error(`Payment failed: ${error.message}`);
+      } catch (error) {
+        const paymentError = error as PaymentError;
+        console.error("Payment processing error:", paymentError);
+        throw new Error(`Payment failed: ${paymentError.message}`);
       }
-    } catch (error: any) {
-      console.error("Booking error:", error);
+    } catch (error) {
+      const bookingError = error as Error;
+      console.error("Booking error:", bookingError);
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to process booking and payment",
+        description: bookingError.message ?? "Failed to process booking and payment",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const today = new Date().toISOString().split('T')[0];
+  const startDate = form.watch("startDate");
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -121,7 +142,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
           id="startDate"
           type="date"
           {...form.register("startDate")}
-          min={new Date().toISOString().split('T')[0]}
+          min={today}
           aria-describedby="startDateHelp"
           disabled={isSubmitting || isSuccess}
         />
@@ -141,9 +162,9 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
           id="endDate"
           type="date"
           {...form.register("endDate")}
-          min={form.watch("startDate") || new Date().toISOString().split('T')[0]}
+          min={startDate || today}
           aria-describedby="endDateHelp"
-          disabled={isSubmitting || isSuccess}
+          disabled={isSubmitting || isSuccess || !startDate}
         />
         <p id="endDateHelp" className="text-sm text-muted-foreground">
           Select an end date for multi-day services
@@ -168,7 +189,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
         <div className="mb-4 p-4 bg-muted rounded-lg">
           <h4 className="font-semibold mb-2">Payment Summary</h4>
           <p className="text-sm text-muted-foreground">
-            Service Price: ${Number(service.price).toFixed(2)}
+            Service Price: ${(Number(service.price) || 0).toFixed(2)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             You will be charged immediately upon booking
@@ -177,7 +198,7 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
         <Button 
           type="submit" 
           className="w-full" 
-          disabled={isSubmitting || isSuccess}
+          disabled={isSubmitting || isSuccess || !form.formState.isValid}
         >
           {isSuccess ? (
             <div className="flex items-center justify-center">
