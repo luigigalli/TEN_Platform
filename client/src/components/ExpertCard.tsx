@@ -18,12 +18,22 @@ interface Expert {
   name: string;
   speciality: string;
   location: string;
-  image: string;
+  image: string | null;
   rating: number;
 }
 
 interface ExpertCardProps {
   expert: Expert;
+}
+
+interface MessagePayload {
+  receiverId: number;
+  message: string;
+  messageType: 'expert_inquiry';
+}
+
+interface MessageError extends Error {
+  message: string;
 }
 
 export default function ExpertCard({ expert }: ExpertCardProps) {
@@ -34,13 +44,24 @@ export default function ExpertCard({ expert }: ExpertCardProps) {
   const { sendMessage } = useMessages();
 
   const handleContact = async () => {
+    if (!message.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter a message",
+      });
+      return;
+    }
+
     try {
       setIsSending(true);
-      await sendMessage({
+      const payload: MessagePayload = {
         receiverId: expert.id,
-        message,
+        message: message.trim(),
         messageType: 'expert_inquiry',
-      });
+      };
+
+      await sendMessage(payload);
 
       toast({
         title: "Success",
@@ -48,15 +69,24 @@ export default function ExpertCard({ expert }: ExpertCardProps) {
       });
       setIsDialogOpen(false);
       setMessage("");
-    } catch (error: any) {
+    } catch (error) {
+      const messageError = error as MessageError;
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: messageError.message ?? "Failed to send message. Please try again.",
       });
     } finally {
       setIsSending(false);
     }
+  };
+
+  // Get initials for avatar fallback
+  const getInitials = (name: string) => {
+    return name.split(' ')
+      .map(part => part[0]?.toUpperCase() ?? '')
+      .slice(0, 2)
+      .join('');
   };
 
   return (
@@ -65,15 +95,18 @@ export default function ExpertCard({ expert }: ExpertCardProps) {
         <CardHeader>
           <div className="flex items-start gap-4">
             <Avatar className="h-12 w-12">
-              <AvatarImage src={expert.image} alt={expert.name} />
-              <AvatarFallback>{expert.name[0]}</AvatarFallback>
+              <AvatarImage 
+                src={expert.image ?? undefined} 
+                alt={`${expert.name}'s profile picture`} 
+              />
+              <AvatarFallback>{getInitials(expert.name)}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <h3 className="font-semibold">{expert.name}</h3>
               <p className="text-sm text-muted-foreground">{expert.speciality}</p>
               <div className="flex items-center gap-1 mt-1">
                 <Star className="h-4 w-4 fill-primary text-primary" />
-                <span className="text-sm font-medium">{expert.rating}</span>
+                <span className="text-sm font-medium">{expert.rating.toFixed(1)}</span>
               </div>
             </div>
           </div>
@@ -81,7 +114,12 @@ export default function ExpertCard({ expert }: ExpertCardProps) {
         <CardContent>
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground">{expert.location}</span>
-            <Button variant="outline" size="sm" onClick={() => setIsDialogOpen(true)}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsDialogOpen(true)}
+              aria-label={`Contact ${expert.name}`}
+            >
               Contact
             </Button>
           </div>
@@ -98,8 +136,16 @@ export default function ExpertCard({ expert }: ExpertCardProps) {
               placeholder="Write your message here..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
+              disabled={isSending}
+              aria-label="Message content"
+              minLength={1}
+              maxLength={1000}
             />
-            <Button onClick={handleContact} className="w-full" disabled={isSending}>
+            <Button 
+              onClick={handleContact} 
+              className="w-full" 
+              disabled={isSending || !message.trim()}
+            >
               {isSending ? "Sending..." : "Send Message"}
             </Button>
           </div>
