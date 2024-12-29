@@ -24,7 +24,20 @@ import {
 } from "@/components/ui/tabs";
 
 interface TripCollaborationProps {
-  trip: Trip;
+  trip: Trip & {
+    collaborationSettings?: CollaborationSettings | null;
+  };
+}
+
+interface InviteMemberResponse {
+  success: boolean;
+  message: string;
+}
+
+interface UpdateSettingsResponse {
+  success: boolean;
+  message: string;
+  settings: CollaborationSettings;
 }
 
 // Default collaboration settings
@@ -41,65 +54,88 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
   const queryClient = useQueryClient();
 
   // Fetch trip members
-  const { data: members = [] } = useQuery<TripMember[]>({
+  const { data: members = [], isError: membersError } = useQuery<TripMember[], Error>({
     queryKey: ["/api/trips", trip.id, "members"],
-    enabled: !!trip.id,
+    enabled: Boolean(trip.id),
   });
 
   // Fetch trip activities
-  const { data: activities = [] } = useQuery<TripActivity[]>({
+  const { data: activities = [], isError: activitiesError } = useQuery<TripActivity[], Error>({
     queryKey: ["/api/trips", trip.id, "activities"],
-    enabled: !!trip.id,
+    enabled: Boolean(trip.id),
   });
 
   // Fetch all users for member lookup
-  const { data: users = [] } = useQuery<User[]>({
+  const { data: users = [], isError: usersError } = useQuery<User[], Error>({
     queryKey: ["/api/users"],
   });
 
+  // Handle any query errors
+  if (membersError || activitiesError || usersError) {
+    toast({
+      title: "Error",
+      description: "Failed to load collaboration data",
+      variant: "destructive",
+    });
+  }
+
   // Helper function to safely get member details
   const getMemberDetails = (userId: number | null): User | undefined => {
-    if (!userId) return undefined;
+    if (userId === null) return undefined;
     return users.find((u) => u.id === userId);
   };
 
   // Helper function to safely format dates
-  const formatDate = (date: Date | null): string => {
+  const formatDate = (date: Date | string | null): string => {
     if (!date) return '';
     return new Date(date).toLocaleDateString();
   };
 
   // Mutations with proper error handling
-  const inviteMember = useMutation({
+  const inviteMember = useMutation<InviteMemberResponse, Error, void>({
     mutationFn: async () => {
       const response = await fetch(`/api/trips/${trip.id}/invite`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail }),
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ email: inviteEmail.trim() }),
       });
-      if (!response.ok) throw new Error("Failed to invite member");
-      return response.json();
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to invite member");
+      }
+      
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setInviteEmail("");
       queryClient.invalidateQueries({ queryKey: ["/api/trips", trip.id, "members"] });
       toast({
-        title: "Invitation sent",
-        description: `Invitation sent to ${inviteEmail}`,
+        title: "Success",
+        description: data.message || `Invitation sent to ${inviteEmail}`,
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to send invitation",
         variant: "destructive",
       });
     },
   });
 
   // Update collaboration settings with proper type checking
-  const updateSettings = useMutation({
-    mutationFn: async (newSettings: Partial<CollaborationSettings>) => {
+  const updateSettings = useMutation<
+    UpdateSettingsResponse,
+    Error,
+    Partial<CollaborationSettings>
+  >({
+    mutationFn: async (newSettings) => {
       const currentSettings = trip.collaborationSettings ?? DEFAULT_SETTINGS;
       const updatedSettings: CollaborationSettings = {
         ...currentSettings,
@@ -108,31 +144,43 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
 
       const response = await fetch(`/api/trips/${trip.id}/settings`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        credentials: "include",
         body: JSON.stringify(updatedSettings),
       });
-      if (!response.ok) throw new Error("Failed to update settings");
-      return response.json();
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update settings");
+      }
+      
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/trips", trip.id] });
       toast({
-        title: "Settings updated",
-        description: "Collaboration settings have been updated",
+        title: "Success",
+        description: data.message || "Collaboration settings have been updated",
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to update settings",
         variant: "destructive",
       });
     },
   });
 
-  const handleInvite = (e: React.FormEvent) => {
+  const handleInvite = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!inviteEmail.trim()) {
+    const email = inviteEmail.trim();
+    
+    if (!email) {
       toast({
         title: "Error",
         description: "Please enter an email address",
@@ -140,6 +188,16 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
       });
       return;
     }
+
+    if (!email.includes('@')) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
     inviteMember.mutate();
   };
 
@@ -170,14 +228,19 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
               <Input
                 id="email"
                 type="email"
+                required
                 placeholder="Enter email address"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
+                disabled={inviteMember.isPending}
               />
             </div>
-            <Button type="submit" disabled={inviteMember.isPending}>
+            <Button 
+              type="submit" 
+              disabled={inviteMember.isPending || !inviteEmail.trim()}
+            >
               <UserPlus className="h-4 w-4 mr-2" />
-              Invite
+              {inviteMember.isPending ? "Inviting..." : "Invite"}
             </Button>
           </form>
         )}
@@ -193,13 +256,18 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
                 >
                   <div className="flex items-center gap-3">
                     <Avatar>
-                      <AvatarImage src={memberDetails?.avatar ?? undefined} />
+                      <AvatarImage 
+                        src={memberDetails?.avatar ?? undefined} 
+                        alt={memberDetails?.username ?? 'User avatar'}
+                      />
                       <AvatarFallback>
                         {memberDetails?.username?.[0]?.toUpperCase() ?? '?'}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{memberDetails?.username ?? 'Unknown User'}</p>
+                      <p className="font-medium">
+                        {memberDetails?.username ?? 'Unknown User'}
+                      </p>
                       <p className="text-sm text-muted-foreground capitalize">
                         {member.role}
                       </p>
@@ -219,44 +287,50 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Allow Invites</Label>
+              <Label htmlFor="allow-invites">Allow Invites</Label>
               <p className="text-sm text-muted-foreground">
                 Members can invite others to join
               </p>
             </div>
             <Switch
+              id="allow-invites"
               checked={currentSettings.canInvite}
               onCheckedChange={(checked) =>
                 updateSettings.mutate({ canInvite: checked })
               }
+              disabled={updateSettings.isPending}
             />
           </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Allow Editing</Label>
+              <Label htmlFor="allow-editing">Allow Editing</Label>
               <p className="text-sm text-muted-foreground">
                 Members can edit trip details
               </p>
             </div>
             <Switch
+              id="allow-editing"
               checked={currentSettings.canEdit}
               onCheckedChange={(checked) =>
                 updateSettings.mutate({ canEdit: checked })
               }
+              disabled={updateSettings.isPending}
             />
           </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Allow Comments</Label>
+              <Label htmlFor="allow-comments">Allow Comments</Label>
               <p className="text-sm text-muted-foreground">
                 Members can leave comments
               </p>
             </div>
             <Switch
+              id="allow-comments"
               checked={currentSettings.canComment}
               onCheckedChange={(checked) =>
                 updateSettings.mutate({ canComment: checked })
               }
+              disabled={updateSettings.isPending}
             />
           </div>
         </div>
@@ -274,7 +348,10 @@ export default function TripCollaboration({ trip }: TripCollaborationProps) {
                 >
                   <div className="flex items-center gap-3">
                     <Avatar>
-                      <AvatarImage src={activityUser?.avatar ?? undefined} />
+                      <AvatarImage 
+                        src={activityUser?.avatar ?? undefined}
+                        alt={activityUser?.username ?? 'User avatar'}
+                      />
                       <AvatarFallback>
                         {activityUser?.username?.[0]?.toUpperCase() ?? '?'}
                       </AvatarFallback>
