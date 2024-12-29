@@ -3,7 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
 import { config, isDevelopment } from "./config";
-import { ServerError } from "./errors/index";
+import { ServerError } from "./utils/errors";
 
 // Initialize Express application with proper error handling
 async function initializeApp() {
