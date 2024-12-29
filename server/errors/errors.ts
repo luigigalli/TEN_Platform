@@ -1,15 +1,3 @@
-/**
- * Main error exports file
- * This file exists to prevent circular dependencies
- * All error classes should be imported from here
- */
-
-import { ServerError } from './base';
-import { EnvironmentConfigError, PortConfigError, DatabaseConfigError } from './environment';
-
-export {
-  ServerError,
-  EnvironmentConfigError,
-  PortConfigError,
-  DatabaseConfigError
-};
+// All error classes are now centralized in ./index.ts
+// This file is deprecated and will be removed in a future version
+export * from './index';
