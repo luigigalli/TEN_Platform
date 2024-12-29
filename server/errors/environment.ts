@@ -1,3 +1,3 @@
-// Environment-specific errors are now defined in ./index.ts
-// This file is deprecated and will be removed in a future version
-export * from './index';
+// Environment-specific errors are now defined in ./base-error.ts
+// This file is maintained for backward compatibility
+export * from './base-error';

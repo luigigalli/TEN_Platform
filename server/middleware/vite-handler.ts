@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import viteConfig from "../../vite.config";
-import { ServerError } from "../errors/base-error";
+import { ServerError } from "../errors";  // Updated import path
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

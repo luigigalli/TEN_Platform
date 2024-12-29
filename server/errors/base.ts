@@ -1,6 +1,6 @@
-// This file is deprecated.
+// This file is maintained for backward compatibility
 // All error definitions have been moved to base-error.ts
-// Update your imports to use:
+// Please update your imports to use:
 // import { ServerError } from './base-error';
 
-throw new Error('This file is deprecated. Import error classes from ./base-error.ts instead.');
+export * from './base-error';

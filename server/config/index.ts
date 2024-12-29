@@ -61,6 +61,7 @@ function buildConfig(): Config {
       env: currentEnvironment,
       server: {
         // For consistency across environments, we'll always use port 5000
+        // This ensures compatibility with Replit's environment
         port: Number(process.env.PORT) || 5000,
         host: process.env.HOST || '0.0.0.0',
         corsOrigins: [
@@ -78,7 +79,7 @@ function buildConfig(): Config {
 
     const validated = configSchema.parse(config);
 
-    // Additional port validation
+    // Additional port validation for security
     if (validated.server.port < 1024) {
       throw new PortConfigError(
         'Port number must be >= 1024 (non-privileged ports)',
