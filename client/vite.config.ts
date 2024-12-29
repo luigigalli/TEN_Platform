@@ -6,9 +6,6 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configuration
-const PORT = 5000;
-
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -17,12 +14,10 @@ export default defineConfig({
     }
   },
   server: {
-    host: '0.0.0.0',  // Bind to all network interfaces
-    port: PORT,
-    strictPort: true, // Fail if port is in use
+    // Remove explicit port configuration to avoid conflicts
     proxy: {
       '/api': {
-        target: `http://localhost:${PORT}`,
+        target: 'http://localhost:5000',
         changeOrigin: true
       }
     }

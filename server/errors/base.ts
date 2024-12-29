@@ -1,3 +1,2 @@
-// This file is deprecated and should no longer be used
-// Import ServerError from './types' instead
-export { ServerError } from './types';
+// This file is deprecated, import directly from '../errors'
+export { ServerError } from '../errors';
