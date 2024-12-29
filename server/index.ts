@@ -3,10 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
 import { config } from "./config";
-import { ServerError } from "./errors/types";  
-
-// Re-export ServerError for other modules
-export { ServerError };
+import { ServerError } from "./errors/types";  // Import directly from types
 
 const app = express();
 
@@ -83,3 +80,6 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     error: err.message || 'Internal Server Error'
   });
 });
+
+// Export ServerError for use in other modules
+export { ServerError };
