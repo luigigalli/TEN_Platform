@@ -51,3 +51,34 @@ export class ViteServerError extends ServerError {
     this.name = 'ViteServerError';
   }
 }
+
+// Authentication errors
+export class AuthenticationError extends ServerError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, 'AUTH_ERROR', 401, details);
+    this.name = 'AuthenticationError';
+  }
+}
+
+// Validation errors
+export class ValidationError extends ServerError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, 'VALIDATION_ERROR', 400, details);
+    this.name = 'ValidationError';
+  }
+}
+
+// Resource errors
+export class ResourceNotFoundError extends ServerError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, 'RESOURCE_NOT_FOUND', 404, details);
+    this.name = 'ResourceNotFoundError';
+  }
+}
+
+export class ResourceConflictError extends ServerError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, 'RESOURCE_CONFLICT', 409, details);
+    this.name = 'ResourceConflictError';
+  }
+}
