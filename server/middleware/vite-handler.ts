@@ -30,21 +30,10 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
     const vite = await createViteServer({
       ...viteConfig,
       configFile: false,
-      customLogger: {
-        ...viteLogger,
-        error: (msg, options) => {
-          if (msg.includes("[TypeScript] Found 0 errors")) {
-            console.log(`${new Date().toLocaleTimeString()} [tsc] No errors found`);
-            return;
-          }
-          viteLogger.error(msg, options);
-        },
-      },
+      customLogger: viteLogger,
       server: {
         middlewareMode: true,
-        hmr: {
-          server,
-        },
+        hmr: { server },
       },
       appType: "custom",
     });
@@ -61,7 +50,7 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
         }
 
         const url = req.originalUrl;
-        const template = fs.readFileSync(
+        const template = await fs.promises.readFile(
           path.resolve(__dirname, '..', '..', 'client', 'index.html'),
           'utf-8'
         );
