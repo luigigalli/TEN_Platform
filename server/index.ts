@@ -2,84 +2,134 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
-import { config } from "./config";
-import { ServerError } from "./errors/index";
+import { config, isDevelopment } from "./config";
+import { ServerError, EnvironmentConfigError } from "./errors/index";
 
-const app = express();
-
-// Configure CORS with proper origins from config
-app.use(cors({
-  origin: config.server.corsOrigins,
-  credentials: true
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-
-// Add request logging middleware
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
-
-// Health check endpoint
-app.get("/api/health", (_req: Request, res: Response) => {
-  res.json({ status: "ok" });
-});
-
-// Initialize routes
-const server = registerRoutes(app);
-
-// Set up development or production environment
-if (config.env === "development") {
-  setupVite(app, server).catch((error: Error) => {
-    console.error('Failed to setup Vite:', error);
-    process.exit(1);
-  });
-} else {
-  serveStatic(app);
+// Validate environment before starting the server
+function validateEnvironment() {
+  if (!config || !config.server || !config.server.port) {
+    throw new EnvironmentConfigError(
+      "Invalid server configuration",
+      { config }
+    );
+  }
 }
 
-// Start the server with environment-aware configuration
-server.listen(config.server.port, config.server.host, () => {
-  log(`Server listening on port ${config.server.port}`);
-  log(`API available at http://${config.server.host}:${config.server.port}/api`);
-  log(`Client available at http://${config.server.host}:${config.server.port}`);
-});
+// Initialize Express application with proper error handling
+async function initializeApp() {
+  // Validate environment first
+  validateEnvironment();
 
-// Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Server error:', err);
-  const status = err instanceof ServerError ? err.statusCode : 500;
-  res.status(status).json({ 
-    error: err.message || 'Internal Server Error'
+  const app = express();
+
+  // Basic security headers
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    next();
   });
-});
 
-// Export ServerError for use in other modules
+  // Configure CORS with environment-aware origins
+  app.use(cors({
+    origin: config.server.corsOrigins,
+    credentials: true
+  }));
+
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: false }));
+
+  // Request logging middleware
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const start = Date.now();
+    const path = req.path;
+    let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+    const originalResJson = res.json;
+    res.json = function (bodyJson, ...args) {
+      capturedJsonResponse = bodyJson;
+      return originalResJson.apply(res, [bodyJson, ...args]);
+    };
+
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      if (path.startsWith("/api")) {
+        let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        if (capturedJsonResponse) {
+          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        }
+
+        if (logLine.length > 80) {
+          logLine = logLine.slice(0, 79) + "…";
+        }
+
+        log(logLine);
+      }
+    });
+
+    next();
+  });
+
+  // Health check endpoint
+  app.get("/api/health", (_req: Request, res: Response) => {
+    res.json({ 
+      status: "ok", 
+      environment: config.env,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Initialize routes
+  const server = registerRoutes(app);
+
+  // Global error handler - must be after routes
+  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('Server error:', err);
+
+    const status = err instanceof ServerError ? err.statusCode : 500;
+    const message = err instanceof ServerError ? err.message : 'Internal Server Error';
+
+    res.status(status).json({ 
+      error: message,
+      ...(isDevelopment ? { stack: err.stack } : {})
+    });
+  });
+
+  // Set up environment-specific server configuration
+  if (config.env === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+
+  return { app, server };
+}
+
+// Start the server with proper error handling
+(async () => {
+  try {
+    const { server } = await initializeApp();
+
+    server.listen(config.server.port, config.server.host, () => {
+      log(`Server running in ${config.env} mode`);
+      log(`API available at http://${config.server.host}:${config.server.port}/api`);
+      log(`Client available at http://${config.server.host}:${config.server.port}`);
+    });
+
+    // Handle server errors
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        throw new EnvironmentConfigError(
+          `Port ${config.server.port} is already in use`,
+          { port: config.server.port }
+        );
+      }
+      throw error;
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+})();
+
 export { ServerError };
