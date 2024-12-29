@@ -1,31 +1,15 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import cors from "cors";
 import { config } from "./config";
 import { ServerError } from "./errors";
+import { initializeServer } from "./middleware/server-init";
 import { handleViteMiddleware, handleStaticFiles } from "./middleware/vite-handler";
 
-// Initialize Express application with proper error handling
-async function initializeApp() {
+// Start the server with proper error handling
+(async () => {
   try {
-    const app = express();
-
-    // Basic security headers
-    app.use((_req: Request, res: Response, next: NextFunction) => {
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('X-Frame-Options', 'DENY');
-      res.setHeader('X-XSS-Protection', '1; mode=block');
-      next();
-    });
-
-    // Configure CORS with environment-aware origins
-    app.use(cors({
-      origin: config.server.corsOrigins,
-      credentials: true
-    }));
-
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: false }));
+    // Initialize server with environment-aware configuration
+    const { app, server } = await initializeServer();
 
     // Request logging middleware
     app.use((req: Request, res: Response, next: NextFunction) => {
@@ -58,17 +42,8 @@ async function initializeApp() {
       next();
     });
 
-    // Health check endpoint
-    app.get("/api/health", (_req: Request, res: Response) => {
-      res.json({ 
-        status: "ok", 
-        environment: config.env,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    // Initialize routes
-    const server = registerRoutes(app);
+    // Register API routes
+    registerRoutes(app);
 
     // Global error handler
     app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
@@ -95,31 +70,13 @@ async function initializeApp() {
       handleStaticFiles(app);
     }
 
-    return { app, server };
-  } catch (error) {
-    console.error('Failed to initialize application:', error);
-    throw error;
-  }
-}
-
-// Start the server with proper error handling
-(async () => {
-  try {
-    const { server } = await initializeApp();
-
-    // Wrap server.listen in a promise for better error handling
-    await new Promise((resolve, reject) => {
-      server.listen(config.server.port, config.server.host)
-        .once('listening', () => {
-          console.log(`${new Date().toLocaleTimeString()} [express] Server running in ${config.env} mode`);
-          console.log(`${new Date().toLocaleTimeString()} [express] API available at http://${config.server.host}:${config.server.port}/api`);
-          console.log(`${new Date().toLocaleTimeString()} [express] Client available at http://${config.server.host}:${config.server.port}`);
-          resolve(true);
-        })
-        .once('error', (error: Error) => {
-          reject(error);
-        });
+    // Start server with environment-aware configuration
+    server.listen(config.server.port, config.server.host, () => {
+      console.log(`${new Date().toLocaleTimeString()} [express] Server running in ${config.env} mode`);
+      console.log(`${new Date().toLocaleTimeString()} [express] API available at http://${config.server.host}:${config.server.port}/api`);
+      console.log(`${new Date().toLocaleTimeString()} [express] Client available at http://${config.server.host}:${config.server.port}`);
     });
+
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
