@@ -194,7 +194,23 @@ async function initializeServer(): Promise<void> {
       serveStatic(app);
     }
 
-    // Start server
+    // Start server with fallback ports
+    const tryPort = async (port: number): Promise<number> => {
+      try {
+        await new Promise((resolve, reject) => {
+          server.listen(port, "0.0.0.0")
+            .once('listening', () => resolve(port))
+            .once('error', reject);
+        });
+        return port;
+      } catch (err) {
+        if (port < 3010) {
+          return tryPort(port + 1);
+        }
+        throw err;
+      }
+    };
+
     const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
     if (isNaN(PORT)) {
       throw new ServerError(
@@ -204,9 +220,8 @@ async function initializeServer(): Promise<void> {
       );
     }
 
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`Server listening on port ${PORT}`);
-    });
+    const finalPort = await tryPort(PORT);
+    log(`Server listening on port ${finalPort}`);
   } catch (error) {
     console.error('Server initialization failed:', error);
     throw new ServerError(
