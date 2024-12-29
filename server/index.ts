@@ -5,28 +5,11 @@ import cors from "cors";
 import { config } from "./config";
 import { ServerError } from "./errors";
 
-// Re-export ServerError for other modules
-export { ServerError } from "./errors";
-
 const app = express();
 
 // Configure CORS with proper origins
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-
-    const isAllowed = config.server.corsOrigins.some(pattern => {
-      return typeof pattern === 'string' 
-        ? pattern === origin
-        : pattern.test(origin);
-    });
-
-    if (isAllowed || origin.includes('localhost')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: config.server.corsOrigins,
   credentials: true
 }));
 
@@ -69,32 +52,31 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ status: "ok" });
 });
 
-// Initialize and start the server
-async function initializeServer(): Promise<void> {
-  try {
-    const server = registerRoutes(app);
+// Initialize routes
+const server = registerRoutes(app);
 
-    // Set up development or production environment
-    if (config.env === "development") {
-      await setupVite(app, server);
-    } else {
-      serveStatic(app);
-    }
-
-    server.listen(config.server.port, config.server.host, () => {
-      log(`Server listening on port ${config.server.port}`);
-      log(`API available at http://${config.server.host}:${config.server.port}/api`);
-      log(`Client available at http://${config.server.host}:${config.server.port}`);
-    });
-
-  } catch (error) {
-    console.error('Server initialization failed:', error);
+// Set up development or production environment
+if (config.env === "development") {
+  setupVite(app, server).catch((error) => {
+    console.error('Failed to setup Vite:', error);
     process.exit(1);
-  }
+  });
+} else {
+  serveStatic(app);
 }
 
-// Start server with proper error handling
-initializeServer().catch((error) => {
-  console.error('Fatal server error:', error);
-  process.exit(1);
+// Start the server
+server.listen(config.server.port, config.server.host, () => {
+  log(`Server listening on port ${config.server.port}`);
+  log(`API available at http://${config.server.host}:${config.server.port}/api`);
+  log(`Client available at http://${config.server.host}:${config.server.port}`);
+});
+
+// Global error handler
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Server error:', err);
+  const status = err instanceof ServerError ? err.statusCode : 500;
+  res.status(status).json({ 
+    error: err.message || 'Internal Server Error'
+  });
 });
