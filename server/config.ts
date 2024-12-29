@@ -6,10 +6,11 @@ dotenv.config();
 
 // Environment detection
 export const isReplit = Boolean(process.env.REPL_ID && process.env.REPL_OWNER);
+export const isWindsurf = !isReplit;
 export const isDevelopment = process.env.NODE_ENV !== 'production';
 
 // Port configuration
-const DEFAULT_PORT = 3000;
+const WINDSURF_PORT = 3000;
 const REPLIT_PORT = 5000;
 
 // Environment configuration schema
@@ -20,7 +21,7 @@ const configSchema = z.object({
   server: z.object({
     port: z.number().int().positive(),
     host: z.string().default('0.0.0.0'),
-    corsOrigins: z.array(z.string()),
+    corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)])),
   }),
   env: z.enum(['development', 'production']).default('development'),
 });
@@ -30,7 +31,7 @@ function determinePort(): number {
   if (process.env.PORT) {
     return parseInt(process.env.PORT, 10);
   }
-  return isReplit ? REPLIT_PORT : DEFAULT_PORT;
+  return isReplit ? REPLIT_PORT : WINDSURF_PORT;
 }
 
 // Configuration object
@@ -46,7 +47,8 @@ export const config = {
       `http://127.0.0.1:${determinePort()}`,
       `http://0.0.0.0:${determinePort()}`,
       /\.repl\.co$/,
-    ],
+      isWindsurf && new RegExp(`^http://.*:${determinePort()}$`),
+    ].filter(Boolean) as (string | RegExp)[],
   },
   env: (process.env.NODE_ENV || 'development') as 'development' | 'production',
 };
