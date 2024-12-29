@@ -1,36 +1,110 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { InsertUser, SelectUser } from "@db/schema";
 import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
 
-// Types and Interfaces
-interface UserError extends Error {
-  code?: string;
-  status?: number;
-}
+// Validation schemas
+const userErrorSchema = z.object({
+  name: z.literal('UserError'),
+  message: z.string(),
+  code: z.string().optional(),
+  status: z.number().optional(),
+});
 
-interface RequestSuccess {
-  ok: true;
-  message?: string;
-  user?: SelectUser;
-}
+const requestSuccessSchema = z.object({
+  ok: z.literal(true),
+  message: z.string().optional(),
+  user: z.custom<SelectUser>().optional(),
+});
 
-interface RequestFailure {
-  ok: false;
-  message: string;
-  code?: string;
-  status?: number;
-}
+const requestFailureSchema = z.object({
+  ok: z.literal(false),
+  message: z.string(),
+  code: z.string().optional(),
+  status: z.number().optional(),
+});
 
-type RequestResult = RequestSuccess | RequestFailure;
+const requestResultSchema = z.discriminatedUnion('ok', [
+  requestSuccessSchema,
+  requestFailureSchema,
+]);
+
+type UserError = z.infer<typeof userErrorSchema>;
+type RequestSuccess = z.infer<typeof requestSuccessSchema>;
+type RequestFailure = z.infer<typeof requestFailureSchema>;
+type RequestResult = z.infer<typeof requestResultSchema>;
 
 interface UseUserResult {
-  user: SelectUser | null;
-  isLoading: boolean;
-  isError: boolean;
-  error: UserError | null;
-  login: (data: InsertUser) => Promise<RequestResult>;
-  logout: () => Promise<RequestResult>;
-  register: (data: InsertUser) => Promise<RequestResult>;
+  readonly user: SelectUser | null;
+  readonly isLoading: boolean;
+  readonly isError: boolean;
+  readonly error: UserError | null;
+  readonly login: (data: InsertUser) => Promise<RequestResult>;
+  readonly logout: () => Promise<RequestResult>;
+  readonly register: (data: InsertUser) => Promise<RequestResult>;
+}
+
+class UserError extends Error {
+  readonly code?: string;
+  readonly status?: number;
+
+  constructor(message: string, details?: { code?: string; status?: number }) {
+    super(message);
+    this.name = 'UserError';
+    
+    if (details) {
+      try {
+        const validatedDetails = userErrorSchema.parse({
+          name: 'UserError',
+          message,
+          ...details,
+        });
+        this.code = validatedDetails.code;
+        this.status = validatedDetails.status;
+      } catch (error) {
+        console.error('Invalid user error details:', error);
+      }
+    }
+
+    // Make properties immutable
+    Object.freeze(this);
+  }
+
+  static fromResponse(response: Response, data: any): UserError {
+    return new UserError(
+      data?.message || response.statusText,
+      {
+        code: data?.code || 'request_failed',
+        status: response.status,
+      }
+    );
+  }
+
+  static fromError(error: unknown): UserError {
+    if (error instanceof UserError) {
+      return error;
+    }
+    return new UserError(
+      error instanceof Error ? error.message : 'Unknown error',
+      { code: 'unknown_error', status: 0 }
+    );
+  }
+}
+
+/**
+ * Validates request result
+ * @param result - Result to validate
+ * @throws {UserError} If result is invalid
+ */
+function validateRequestResult(result: unknown): RequestResult {
+  try {
+    return requestResultSchema.parse(result);
+  } catch (error) {
+    throw new UserError(
+      'Invalid request result',
+      { code: 'validation_error', status: 500 }
+    );
+  }
 }
 
 /**
@@ -39,6 +113,7 @@ interface UseUserResult {
  * @param method - HTTP method
  * @param body - Request body (optional)
  * @returns Promise resolving to request result
+ * @throws {UserError} If request fails
  */
 async function handleRequest(
   url: string,
@@ -61,26 +136,26 @@ async function handleRequest(
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      return { 
+      return validateRequestResult({ 
         ok: false, 
         message: data.message || response.statusText,
         code: data.code || "request_failed",
         status: response.status,
-      };
+      });
     }
 
-    return { 
+    return validateRequestResult({ 
       ok: true,
       ...data,
-    };
+    });
   } catch (err) {
-    const error = err instanceof Error ? err : new Error("Unknown error");
-    return { 
+    const error = UserError.fromError(err);
+    return validateRequestResult({ 
       ok: false, 
       message: error.message,
-      code: "network_error",
-      status: 0,
-    };
+      code: error.code || "network_error",
+      status: error.status || 0,
+    });
   }
 }
 
@@ -104,21 +179,13 @@ async function fetchUser(): Promise<SelectUser | null> {
       }
 
       const data = await response.json().catch(() => ({}));
-      const error = new Error(data.message || response.statusText) as UserError;
-      error.code = data.code || "fetch_user_failed";
-      error.status = response.status;
-      throw error;
+      throw UserError.fromResponse(response, data);
     }
 
-    return response.json();
+    const userData = await response.json();
+    return userData;
   } catch (err) {
-    const error = err instanceof Error ? err : new Error("Failed to fetch user");
-    if (error instanceof UserError) {
-      throw error;
-    }
-    const userError = error as UserError;
-    userError.code = userError.code || "unknown_error";
-    throw userError;
+    throw UserError.fromError(err);
   }
 }
 
@@ -230,7 +297,7 @@ export function useUser(): UseUserResult {
     },
   });
 
-  return {
+  return Object.freeze({
     user,
     isLoading,
     isError,
@@ -238,5 +305,5 @@ export function useUser(): UseUserResult {
     login: loginMutation.mutateAsync,
     logout: logoutMutation.mutateAsync,
     register: registerMutation.mutateAsync,
-  };
+  });
 }
