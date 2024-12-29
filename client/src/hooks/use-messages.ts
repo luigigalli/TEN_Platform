@@ -1,25 +1,49 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Message, InsertMessage } from "@db/schema";
+import { z } from "zod";
 
-type MessageType = 'expert_inquiry' | 'trip_discussion' | 'booking_support' | 'admin_notice';
-type ContextType = 'trip' | 'booking' | 'service';
+// Validation schemas
+const messageTypeSchema = z.enum([
+  'expert_inquiry',
+  'trip_discussion',
+  'booking_support',
+  'admin_notice'
+]);
 
-interface SendMessageData {
-  receiverId: number;
-  message: string;
-  messageType: MessageType;
-  contextId?: number;
-  contextType?: ContextType;
-}
+const contextTypeSchema = z.enum([
+  'trip',
+  'booking',
+  'service'
+]);
 
-interface MessageResponse {
-  message: Message;
-  conversationId: string;
-}
+type MessageType = z.infer<typeof messageTypeSchema>;
+type ContextType = z.infer<typeof contextTypeSchema>;
 
-interface MessageError extends Error {
-  message: string;
-  status?: number;
+const sendMessageDataSchema = z.object({
+  receiverId: z.number().int().positive(),
+  message: z.string().min(1),
+  messageType: messageTypeSchema,
+  contextId: z.number().int().positive().optional(),
+  contextType: contextTypeSchema.optional(),
+});
+
+const messageResponseSchema = z.object({
+  message: z.any(), // Replace with proper Message schema when available
+  conversationId: z.string().min(1),
+});
+
+type SendMessageData = z.infer<typeof sendMessageDataSchema>;
+type MessageResponse = z.infer<typeof messageResponseSchema>;
+
+class MessageError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+    public readonly code?: string
+  ) {
+    super(message);
+    this.name = 'MessageError';
+  }
 }
 
 interface UseMessagesResult {
@@ -32,12 +56,39 @@ interface UseMessagesResult {
 }
 
 /**
+ * Validates the conversation ID
+ * @param conversationId - The conversation ID to validate
+ * @throws {MessageError} If the conversation ID is invalid
+ */
+function validateConversationId(conversationId: string): void {
+  if (!conversationId.match(/^[a-zA-Z0-9_-]+$/)) {
+    throw new MessageError(
+      'Invalid conversation ID format',
+      400,
+      'INVALID_CONVERSATION_ID'
+    );
+  }
+}
+
+/**
  * Hook to manage messages in a conversation
- * @param conversationId Optional conversation ID to filter messages
+ * @param conversationId - Optional conversation ID to filter messages
  * @returns Object containing messages and message management functions
+ * @throws {MessageError} If there are any validation or API errors
  */
 export function useMessages(conversationId?: string): UseMessagesResult {
   const queryClient = useQueryClient();
+
+  // Validate conversation ID if provided
+  React.useEffect(() => {
+    if (conversationId) {
+      try {
+        validateConversationId(conversationId);
+      } catch (error) {
+        console.error('Conversation ID validation failed:', error);
+      }
+    }
+  }, [conversationId]);
 
   const { 
     data: messages, 
@@ -48,31 +99,58 @@ export function useMessages(conversationId?: string): UseMessagesResult {
     queryKey: conversationId 
       ? ["/api/messages", conversationId]
       : ["/api/messages"],
-    enabled: !!conversationId,
+    enabled: !conversationId || conversationId.length > 0,
   });
 
   const sendMessage = useMutation<MessageResponse, MessageError, SendMessageData>({
     mutationFn: async (data: SendMessageData) => {
-      const res = await fetch("/api/messages", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: JSON.stringify({
-          ...data,
-          conversationId: conversationId || `${data.receiverId}_${Date.now()}`,
-        }),
-        credentials: "include",
-      });
+      try {
+        // Validate input data
+        const validatedData = sendMessageDataSchema.parse(data);
 
-      if (!res.ok) {
-        const error = new Error(await res.text()) as MessageError;
-        error.status = res.status;
+        const newConversationId = conversationId || `${validatedData.receiverId}_${Date.now()}`;
+        
+        // Validate generated conversation ID
+        if (newConversationId) {
+          validateConversationId(newConversationId);
+        }
+
+        const res = await fetch("/api/messages", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: JSON.stringify({
+            ...validatedData,
+            conversationId: newConversationId,
+          }),
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new MessageError(
+            errorText,
+            res.status,
+            'API_ERROR'
+          );
+        }
+
+        const responseData = await res.json();
+        
+        // Validate response data
+        return messageResponseSchema.parse(responseData);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          throw new MessageError(
+            `Validation error: ${error.message}`,
+            400,
+            'VALIDATION_ERROR'
+          );
+        }
         throw error;
       }
-
-      return res.json();
     },
     onSuccess: (data) => {
       // Update the conversation messages
@@ -90,21 +168,44 @@ export function useMessages(conversationId?: string): UseMessagesResult {
 
   const markAsRead = useMutation<Message, MessageError, number>({
     mutationFn: async (messageId: number) => {
-      const res = await fetch(`/api/messages/${messageId}/read`, {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-        },
-        credentials: "include",
-      });
+      try {
+        // Validate message ID
+        if (!Number.isInteger(messageId) || messageId <= 0) {
+          throw new MessageError(
+            'Invalid message ID',
+            400,
+            'INVALID_MESSAGE_ID'
+          );
+        }
 
-      if (!res.ok) {
-        const error = new Error(await res.text()) as MessageError;
-        error.status = res.status;
-        throw error;
+        const res = await fetch(`/api/messages/${messageId}/read`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+          },
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new MessageError(
+            errorText,
+            res.status,
+            'API_ERROR'
+          );
+        }
+
+        return res.json();
+      } catch (error) {
+        if (error instanceof MessageError) {
+          throw error;
+        }
+        throw new MessageError(
+          error instanceof Error ? error.message : 'Unknown error',
+          500,
+          'UNKNOWN_ERROR'
+        );
       }
-
-      return res.json();
     },
     onSuccess: (data) => {
       // Update the conversation messages
