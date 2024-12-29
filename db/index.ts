@@ -1,13 +1,11 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from "@db/schema";
-import { ServerError } from '../server/errors';
+import { DatabaseConfigError } from '../server/errors/index';
 
 if (!process.env.DATABASE_URL) {
-  throw new ServerError(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-    "DATABASE_URL_MISSING",
-    500
+  throw new DatabaseConfigError(
+    "DATABASE_URL must be set. Did you forget to provision a database?"
   );
 }
 

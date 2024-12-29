@@ -19,7 +19,7 @@ const configSchema = z.object({
   server: z.object({
     port: z.number().int().positive(),
     host: z.string(),
-    corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)])),
+    corsOrigins: z.array(z.string().or(z.instanceof(RegExp))),
   }),
   env: z.enum(['development', 'production']).default('development'),
 });
@@ -34,11 +34,13 @@ export const config = {
     host: '0.0.0.0',  // Bind to all network interfaces
     corsOrigins: [
       // Allow local development
-      `http://localhost:${PORT}`,
-      `http://127.0.0.1:${PORT}`,
-      `http://0.0.0.0:${PORT}`,
+      'http://localhost:5000',
+      'http://127.0.0.1:5000',
+      'http://0.0.0.0:5000',
       // Allow Replit domains
       /\.repl\.co$/,
+      // Allow all during development
+      ...(isDevelopment ? ['*'] : []),
     ],
   },
   env: (process.env.NODE_ENV || 'development') as 'development' | 'production',
@@ -51,3 +53,6 @@ try {
   console.error('Invalid configuration:', error);
   process.exit(1);
 }
+
+// Export validated config
+export default config;

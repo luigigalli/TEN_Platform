@@ -3,7 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
 import { config } from "./config";
-import { ServerError } from "./errors";
+import { ServerError } from "./errors/index";
 
 const app = express();
 
@@ -57,7 +57,7 @@ const server = registerRoutes(app);
 
 // Set up development or production environment
 if (config.env === "development") {
-  setupVite(app, server).catch((error) => {
+  setupVite(app, server).catch((error: Error) => {
     console.error('Failed to setup Vite:', error);
     process.exit(1);
   });
