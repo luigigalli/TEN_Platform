@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { ServerError } from './errors/base';
 
 // Load environment variables from .env file in development
 dotenv.config();
@@ -8,8 +9,31 @@ dotenv.config();
 export const isReplit = Boolean(process.env.REPL_ID && process.env.REPL_OWNER);
 export const isDevelopment = process.env.NODE_ENV !== 'production';
 
-// Port configuration - Always use 5000 in Replit
-const PORT = 5000;
+// Port configuration schema
+const portConfigSchema = z.object({
+  port: z.number().int().positive(),
+  host: z.string().min(1),
+});
+
+type PortConfig = z.infer<typeof portConfigSchema>;
+
+// Environment-aware port configuration
+function getPortConfig(): PortConfig {
+  // Always use port 5000 for Replit environment
+  const port = 5000;
+  const host = '0.0.0.0'; // Bind to all network interfaces
+
+  try {
+    return portConfigSchema.parse({ port, host });
+  } catch (error) {
+    throw new ServerError(
+      'Invalid port configuration',
+      'PORT_CONFIG_ERROR',
+      500,
+      { error }
+    );
+  }
+}
 
 // Environment configuration schema
 const configSchema = z.object({
@@ -30,8 +54,7 @@ export const config = {
     url: process.env.DATABASE_URL || '',
   },
   server: {
-    port: PORT,
-    host: '0.0.0.0',  // Bind to all network interfaces
+    ...getPortConfig(),
     corsOrigins: [
       // Allow local development
       'http://localhost:5000',

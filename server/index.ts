@@ -3,7 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
 import { config } from "./config";
-import { ServerError } from "./errors";  // Updated import path
+import { ServerError } from "./errors/base";  
 
 const app = express();
 
@@ -65,7 +65,7 @@ if (config.env === "development") {
   serveStatic(app);
 }
 
-// Start the server on port 5000
+// Start the server
 server.listen(config.server.port, config.server.host, () => {
   log(`Server listening on port ${config.server.port}`);
   log(`API available at http://${config.server.host}:${config.server.port}/api`);
