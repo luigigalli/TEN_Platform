@@ -19,11 +19,11 @@ type PortConfig = z.infer<typeof portConfigSchema>;
 
 // Environment-aware port configuration
 function getPortConfig(): PortConfig {
-  // Always use port 5000 for Replit environment
-  const port = 5000;
-  const host = '0.0.0.0'; // Bind to all network interfaces
-
   try {
+    // Always use port 5000 for consistency across environments
+    const port = 5000;
+    const host = '0.0.0.0'; // Bind to all network interfaces
+
     return portConfigSchema.parse({ port, host });
   } catch (error) {
     throw new ServerError(
@@ -73,9 +73,8 @@ export const config = {
 try {
   configSchema.parse(config);
 } catch (error) {
-  console.error('Invalid configuration:', error);
+  console.error('Configuration validation failed:', error);
   process.exit(1);
 }
 
-// Export validated config
 export default config;
