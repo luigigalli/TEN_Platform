@@ -14,11 +14,11 @@ export default defineConfig({
     }
   },
   server: {
-    // Remove explicit port configuration to avoid conflicts
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
+        target: process.env.VITE_API_URL || 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false
       }
     }
   }

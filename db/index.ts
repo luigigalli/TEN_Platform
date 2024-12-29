@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from "@db/schema";
-import { DatabaseConfigError } from '../server/errors/environment';
+import { DatabaseConfigError } from '../server/errors';  // Updated import path
 
 if (!process.env.DATABASE_URL) {
   throw new DatabaseConfigError(

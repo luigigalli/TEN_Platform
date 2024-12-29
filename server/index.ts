@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import cors from "cors";
 import { config, isDevelopment } from "./config";
-import { ServerError } from "./errors/base-error";
+import { ServerError } from "./errors";
 import { handleViteMiddleware, handleStaticFiles } from "./middleware/vite-handler";
 
 // Initialize Express application with proper error handling
