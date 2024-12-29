@@ -211,7 +211,7 @@ async function initializeServer(): Promise<void> {
       }
     };
 
-    const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+    const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
     if (isNaN(PORT)) {
       throw new ServerError(
         'Invalid PORT environment variable',
