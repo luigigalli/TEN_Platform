@@ -1,2 +1,3 @@
-// This file is deprecated, import directly from '../errors'
-export * from '../errors';
+// Environment-specific errors are now defined in ./index.ts
+// This file is deprecated and will be removed in a future version
+export * from './index';

@@ -3,24 +3,14 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
 import { config, isDevelopment } from "./config";
-import { ServerError, EnvironmentConfigError, PortConfigError } from "./errors/index";
+import { ServerError } from "./errors/index";
 
-// Validate environment before starting the server
-function validateEnvironment() {
-  if (!config || !config.server || !config.server.port) {
-    throw new EnvironmentConfigError(
-      "Invalid server configuration",
-      { config }
-    );
-  }
-}
+// Re-export ServerError for backward compatibility
+export { ServerError } from "./errors/index";
 
 // Initialize Express application with proper error handling
 async function initializeApp() {
   try {
-    // Validate environment first
-    validateEnvironment();
-
     const app = express();
 
     // Basic security headers
@@ -83,30 +73,26 @@ async function initializeApp() {
     // Initialize routes
     const server = registerRoutes(app);
 
-    // Global error handler - must be after routes
+    // Global error handler
     app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
       console.error('Server error:', err);
 
-      if (err instanceof PortConfigError) {
-        res.status(500).json({ 
+      if (err instanceof ServerError) {
+        res.status(err.statusCode).json({ 
           error: err.message,
           code: err.code,
           ...(isDevelopment ? { details: err.details } : {})
         });
-        return;
+      } else {
+        res.status(500).json({ 
+          error: 'Internal Server Error',
+          ...(isDevelopment ? { stack: err.stack } : {})
+        });
       }
-
-      const status = err instanceof ServerError ? err.statusCode : 500;
-      const message = err instanceof ServerError ? err.message : 'Internal Server Error';
-
-      res.status(status).json({ 
-        error: message,
-        ...(isDevelopment ? { stack: err.stack } : {})
-      });
     });
 
-    // Set up environment-specific server configuration
-    if (config.env === "development") {
+    // Set up environment-specific configuration
+    if (isDevelopment) {
       await setupVite(app, server);
     } else {
       serveStatic(app);
@@ -134,25 +120,11 @@ async function initializeApp() {
           resolve(true);
         })
         .once('error', (error: NodeJS.ErrnoException) => {
-          if (error.code === 'EADDRINUSE') {
-            reject(new PortConfigError(
-              `Port ${config.server.port} is already in use`,
-              config.server.port,
-              { originalError: error.message }
-            ));
-          } else {
-            reject(error);
-          }
+          reject(error);
         });
     });
   } catch (error) {
-    if (error instanceof PortConfigError) {
-      console.error(`Port configuration error: ${error.message}`);
-    } else {
-      console.error('Failed to start server:', error);
-    }
+    console.error('Failed to start server:', error);
     process.exit(1);
   }
 })();
-
-export { ServerError };

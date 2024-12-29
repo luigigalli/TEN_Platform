@@ -7,25 +7,24 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv();
 }
 
-// Environment definitions
-export const Environment = {
+// Environment definitions and detection
+const ENV = {
   Development: 'development',
   Production: 'production',
 } as const;
 
-export type Environment = (typeof Environment)[keyof typeof Environment];
+export type Environment = (typeof ENV)[keyof typeof ENV];
 
-// Environment detection
 export const isReplit = Boolean(process.env.REPL_ID && process.env.REPL_OWNER);
 export const isDevelopment = process.env.NODE_ENV !== 'production';
 export const currentEnvironment: Environment = isDevelopment 
-  ? Environment.Development 
-  : Environment.Production;
+  ? ENV.Development 
+  : ENV.Production;
 
 // Configuration schemas
 const portConfigSchema = z.object({
-  port: z.number().int().min(1024).max(65535),
-  host: z.string().min(1),
+  port: z.coerce.number().int().min(1024).max(65535).default(5000),
+  host: z.string().min(1).default('0.0.0.0'),
 });
 
 const serverConfigSchema = z.object({
@@ -35,7 +34,7 @@ const serverConfigSchema = z.object({
 });
 
 const configSchema = z.object({
-  env: z.nativeEnum(Environment),
+  env: z.nativeEnum(ENV),
   server: serverConfigSchema,
   database: z.object({
     url: z.string().min(1),
@@ -79,5 +78,5 @@ function buildConfig(): Config {
 // Export validated configuration
 export const config = buildConfig();
 
-// Export types and utilities
-export { Environment, type Config, type PortConfig };
+// Export environment enum for external use
+export { ENV };
