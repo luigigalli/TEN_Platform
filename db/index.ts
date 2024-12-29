@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from "@db/schema";
-import { DatabaseConfigError } from '../server/errors/index';
+import { DatabaseConfigError } from '../server/errors/environment';
 
 if (!process.env.DATABASE_URL) {
   throw new DatabaseConfigError(
@@ -9,7 +9,7 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Create the database connection
+// Create the database connection with environment-aware configuration
 const client = postgres(process.env.DATABASE_URL, {
   max: 10,
   idle_timeout: 20,

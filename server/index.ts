@@ -3,11 +3,11 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
 import { config } from "./config";
-import { ServerError } from "./errors/types";  // Import directly from types
+import { ServerError } from "./errors/index";
 
 const app = express();
 
-// Configure CORS with proper origins
+// Configure CORS with proper origins from config
 app.use(cors({
   origin: config.server.corsOrigins,
   credentials: true
@@ -65,7 +65,7 @@ if (config.env === "development") {
   serveStatic(app);
 }
 
-// Start the server
+// Start the server with environment-aware configuration
 server.listen(config.server.port, config.server.host, () => {
   log(`Server listening on port ${config.server.port}`);
   log(`API available at http://${config.server.host}:${config.server.port}/api`);

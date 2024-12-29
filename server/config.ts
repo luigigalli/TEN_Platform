@@ -1,17 +1,19 @@
-import dotenv from 'dotenv';
 import { z } from 'zod';
-import { ServerError } from './errors/base';
+import { config as dotenv } from 'dotenv';
+import { EnvironmentConfigError, PortConfigError } from './errors/index';
 
-// Load environment variables from .env file in development
-dotenv.config();
+// Load environment variables in development
+if (process.env.NODE_ENV !== 'production') {
+  dotenv();
+}
 
 // Environment detection
 export const isReplit = Boolean(process.env.REPL_ID && process.env.REPL_OWNER);
 export const isDevelopment = process.env.NODE_ENV !== 'production';
 
-// Port configuration schema
+// Port configuration schema with enhanced validation
 const portConfigSchema = z.object({
-  port: z.number().int().positive(),
+  port: z.coerce.number().int().min(1024).max(65535),
   host: z.string().min(1),
 });
 
@@ -20,18 +22,23 @@ type PortConfig = z.infer<typeof portConfigSchema>;
 // Environment-aware port configuration
 function getPortConfig(): PortConfig {
   try {
-    // Always use port 5000 for consistency across environments
-    const port = 5000;
-    const host = '0.0.0.0'; // Bind to all network interfaces
+    // Default port is 5000 (compatible with Replit)
+    const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
 
-    return portConfigSchema.parse({ port, host });
+    // Always bind to all network interfaces in Replit or development
+    const host = isReplit || isDevelopment ? '0.0.0.0' : (process.env.HOST || 'localhost');
+
+    const config = { port, host };
+    return portConfigSchema.parse(config);
   } catch (error) {
-    throw new ServerError(
-      'Invalid port configuration',
-      'PORT_CONFIG_ERROR',
-      500,
-      { error }
-    );
+    if (error instanceof z.ZodError) {
+      throw new PortConfigError(
+        'Invalid port configuration',
+        0,
+        { zodError: error.errors }
+      );
+    }
+    throw new EnvironmentConfigError('Failed to load port configuration');
   }
 }
 
@@ -73,8 +80,13 @@ export const config = {
 try {
   configSchema.parse(config);
 } catch (error) {
-  console.error('Configuration validation failed:', error);
-  process.exit(1);
+  if (error instanceof z.ZodError) {
+    console.error('Configuration validation failed:', error.errors);
+    process.exit(1);
+  } else {
+    console.error('Configuration error:', error);
+    process.exit(1);
+  }
 }
 
 export default config;
