@@ -5,6 +5,7 @@ import AuthPage from "./pages/AuthPage";
 import HomePage from "./pages/HomePage";
 import TripPlanner from "./pages/TripPlanner";
 import ServicesPage from "./pages/ServicesPage";
+import BookingsPage from "./pages/BookingsPage";
 import Profile from "./pages/Profile";
 import { Loader2 } from "lucide-react";
 
@@ -34,6 +35,7 @@ function App() {
         <Switch>
           <Route path="/" component={HomePage} />
           <Route path="/services" component={ServicesPage} />
+          <Route path="/bookings" component={BookingsPage} />
           <Route path="/trips" component={TripPlanner} />
           <Route path="/profile">
             <Profile />

@@ -1,15 +1,17 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import * as schema from "@db/schema";
+import { env } from '../server/config';
 
-if (!process.env.DATABASE_URL) {
+if (!env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL must be set. Did you forget to provision a database?",
   );
 }
 
+// Create the database connection
+const client = postgres(env.DATABASE_URL);
 export const db = drizzle({
-  connection: process.env.DATABASE_URL,
+  client,
   schema,
-  ws: ws,
 });

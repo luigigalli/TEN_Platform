@@ -2,124 +2,228 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Trip } from "@db/schema";
 import { useToast } from "@/hooks/use-toast";
 
-export function useTrips() {
+interface TripError extends Error {
+  code?: string;
+  status?: number;
+}
+
+interface CreateTripData extends Partial<Trip> {
+  title: string;
+  destination: string;
+  startDate: string | Date;
+  endDate: string | Date;
+}
+
+interface InviteMemberData {
+  tripId: number;
+  email: string;
+}
+
+interface UpdateCollaborationData {
+  tripId: number;
+  settings: Trip['collaborationSettings'];
+}
+
+interface UseTripsResult {
+  trips: Trip[];
+  isLoading: boolean;
+  isError: boolean;
+  error: TripError | null;
+  createTrip: (data: CreateTripData) => Promise<Trip>;
+  inviteMember: (data: InviteMemberData) => Promise<void>;
+  updateCollaborationSettings: (data: UpdateCollaborationData) => Promise<Trip>;
+}
+
+/**
+ * Hook for managing trips
+ * @returns Object containing trips data and management functions
+ */
+export function useTrips(): UseTripsResult {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: trips, isLoading, error } = useQuery<Trip[]>({
+  const { 
+    data: trips, 
+    isLoading,
+    isError,
+    error,
+  } = useQuery<Trip[], TripError>({
     queryKey: ["/api/trips"],
-    onError: (error: Error) => {
+    onError: (error: TripError) => {
       toast({
         variant: "destructive",
         title: "Error fetching trips",
-        description: error.message
+        description: error.message,
       });
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 3,
   });
 
-  const createTrip = useMutation({
-    mutationFn: async (tripData: Partial<Trip>) => {
-      const res = await fetch("/api/trips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(tripData),
-        credentials: "include",
-      });
+  const createTrip = useMutation<Trip, TripError, CreateTripData>({
+    mutationFn: async (tripData: CreateTripData) => {
+      try {
+        const res = await fetch("/api/trips", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: JSON.stringify(tripData),
+          credentials: "include",
+        });
 
-      if (!res.ok) {
-        throw new Error(await res.text());
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null);
+          console.error('Trip creation error:', errorData);
+          const error = new Error(
+            errorData?.error || "Failed to create trip"
+          ) as TripError;
+          error.status = res.status;
+          error.code = errorData?.code || "create_trip_failed";
+          throw error;
+        }
+
+        return res.json();
+      } catch (err) {
+        console.error('Trip creation error:', err);
+        if (err instanceof Error) {
+          const tripError = err as TripError;
+          tripError.code = tripError.code || "unknown_error";
+          throw tripError;
+        }
+        throw new Error("An unknown error occurred");
       }
-
-      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/trips"] });
+      queryClient.setQueryData<Trip[]>(["/api/trips"], (old) => {
+        if (!old) return [data];
+        return [...old, data];
+      });
       toast({
         title: "Success",
-        description: "Trip created successfully!"
+        description: "Trip created successfully!",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: TripError) => {
       toast({
         variant: "destructive",
         title: "Error creating trip",
-        description: error.message
+        description: error.message,
       });
-    }
+    },
   });
 
-  const inviteMember = useMutation({
-    mutationFn: async ({ tripId, email }: { tripId: number; email: string }) => {
-      const res = await fetch(`/api/trips/${tripId}/members`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-        credentials: "include",
-      });
+  const inviteMember = useMutation<void, TripError, InviteMemberData>({
+    mutationFn: async ({ tripId, email }) => {
+      try {
+        const res = await fetch(`/api/trips/${tripId}/members`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: JSON.stringify({ email }),
+          credentials: "include",
+        });
 
-      if (!res.ok) {
-        throw new Error(await res.text());
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null);
+          const error = new Error(
+            errorData?.message || "Failed to invite member"
+          ) as TripError;
+          error.status = res.status;
+          error.code = errorData?.code || "invite_member_failed";
+          throw error;
+        }
+
+        return res.json();
+      } catch (err) {
+        if (err instanceof Error) {
+          const tripError = err as TripError;
+          tripError.code = tripError.code || "unknown_error";
+          throw tripError;
+        }
+        throw new Error("An unknown error occurred");
       }
-
-      return res.json();
     },
     onSuccess: (_, { tripId }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/trips", tripId, "members"] });
       toast({
         title: "Success",
-        description: "Member invited successfully!"
+        description: "Member invited successfully!",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: TripError) => {
       toast({
         variant: "destructive",
         title: "Error inviting member",
-        description: error.message
+        description: error.message,
       });
-    }
+    },
   });
 
-  const updateCollaborationSettings = useMutation({
-    mutationFn: async ({ 
-      tripId, 
-      settings 
-    }: { 
-      tripId: number; 
-      settings: Trip['collaborationSettings'];
-    }) => {
-      const res = await fetch(`/api/trips/${tripId}/settings`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ collaborationSettings: settings }),
-        credentials: "include",
-      });
+  const updateCollaborationSettings = useMutation<Trip, TripError, UpdateCollaborationData>({
+    mutationFn: async ({ tripId, settings }) => {
+      try {
+        const res = await fetch(`/api/trips/${tripId}/settings`, {
+          method: "PATCH",
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: JSON.stringify({ collaborationSettings: settings }),
+          credentials: "include",
+        });
 
-      if (!res.ok) {
-        throw new Error(await res.text());
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null);
+          const error = new Error(
+            errorData?.message || "Failed to update collaboration settings"
+          ) as TripError;
+          error.status = res.status;
+          error.code = errorData?.code || "update_settings_failed";
+          throw error;
+        }
+
+        return res.json();
+      } catch (err) {
+        if (err instanceof Error) {
+          const tripError = err as TripError;
+          tripError.code = tripError.code || "unknown_error";
+          throw tripError;
+        }
+        throw new Error("An unknown error occurred");
       }
-
-      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/trips"] });
+      queryClient.setQueryData<Trip[]>(["/api/trips"], (old) => {
+        if (!old) return [data];
+        return old.map((trip) => 
+          trip.id === data.id ? data : trip
+        );
+      });
       toast({
         title: "Success",
-        description: "Collaboration settings updated successfully!"
+        description: "Collaboration settings updated successfully!",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: TripError) => {
       toast({
         variant: "destructive",
         title: "Error updating collaboration settings",
-        description: error.message
+        description: error.message,
       });
-    }
+    },
   });
 
   return {
     trips: trips || [],
     isLoading,
-    error,
+    isError,
+    error: error ?? null,
     createTrip: createTrip.mutateAsync,
     inviteMember: inviteMember.mutateAsync,
     updateCollaborationSettings: updateCollaborationSettings.mutateAsync,

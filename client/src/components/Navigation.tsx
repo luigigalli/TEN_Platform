@@ -7,10 +7,32 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUser } from "../hooks/use-user";
-import type { User } from "@db/schema";
+import type { SelectUser } from "@db/schema";
 
-export default function Navigation({ user }: { user: User }) {
+interface NavigationProps {
+  user: SelectUser;
+}
+
+export default function Navigation({ user }: NavigationProps) {
   const { logout } = useUser();
+
+  // Get user initials for avatar fallback
+  const getUserInitials = (name: string | undefined | null) => {
+    if (!name) return '';
+    return name
+      .split(' ')
+      .map(part => part[0]?.toUpperCase() ?? '')
+      .slice(0, 2)
+      .join('');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   return (
     <header className="border-b">
@@ -20,19 +42,39 @@ export default function Navigation({ user }: { user: User }) {
             <div className="flex items-center gap-6">
               <NavigationMenuItem>
                 <Link href="/">
-                  <span className="text-xl font-bold text-primary cursor-pointer">
+                  <a className="text-xl font-bold text-primary hover:text-primary/90 transition-colors">
                     TEN
-                  </span>
+                  </a>
                 </Link>
               </NavigationMenuItem>
               <NavigationMenuItem>
                 <Link href="/services">
-                  <Button variant="ghost">Services</Button>
+                  <Button 
+                    variant="ghost"
+                    aria-label="View Services"
+                  >
+                    Services
+                  </Button>
+                </Link>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <Link href="/bookings">
+                  <Button 
+                    variant="ghost"
+                    aria-label="View Bookings"
+                  >
+                    My Bookings
+                  </Button>
                 </Link>
               </NavigationMenuItem>
               <NavigationMenuItem>
                 <Link href="/trips">
-                  <Button variant="ghost">Trip Planner</Button>
+                  <Button 
+                    variant="ghost"
+                    aria-label="View Trip Planner"
+                  >
+                    Trip Planner
+                  </Button>
                 </Link>
               </NavigationMenuItem>
             </div>
@@ -40,19 +82,26 @@ export default function Navigation({ user }: { user: User }) {
             <div className="flex items-center gap-4">
               <NavigationMenuItem>
                 <Link href="/profile">
-                  <div className="flex items-center gap-2 cursor-pointer">
+                  <a className="flex items-center gap-2 hover:opacity-90 transition-opacity">
                     <Avatar>
-                      {user.avatar && <AvatarImage src={user.avatar} alt={user.username} />}
+                      <AvatarImage 
+                        src={user.avatar ?? undefined} 
+                        alt={`${user.username}'s profile picture`}
+                      />
                       <AvatarFallback>
-                        {user.username.charAt(0).toUpperCase()}
+                        {getUserInitials(user.fullName || user.username)}
                       </AvatarFallback>
                     </Avatar>
-                    <span>{user.username}</span>
-                  </div>
+                    <span className="text-sm font-medium">{user.username}</span>
+                  </a>
                 </Link>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <Button variant="ghost" onClick={() => logout()}>
+                <Button 
+                  variant="ghost" 
+                  onClick={handleLogout}
+                  aria-label="Logout from your account"
+                >
                   Logout
                 </Button>
               </NavigationMenuItem>

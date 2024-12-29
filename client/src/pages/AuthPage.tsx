@@ -8,102 +8,141 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { InsertUser } from "@db/schema";
 
+// Form validation schemas
 const loginSchema = z.object({
-  username: z.string().min(1, "Username or email is required"),
+  email: z.string().email("Invalid email format"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 const registerSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  email: z.string().email("Invalid email"),
+  firstName: z.string().min(2, "First name is required"),
+  email: z.string().email("Invalid email format"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+// Form data types
 type LoginFormData = z.infer<typeof loginSchema>;
 type RegisterFormData = z.infer<typeof registerSchema>;
 
+// Error types
+interface AuthError extends Error {
+  message: string;
+  code?: string;
+  status?: number;
+}
+
+// Response types
+interface AuthResponse {
+  ok: boolean;
+  message?: string;
+  user?: InsertUser;
+}
+
+/**
+ * AuthPage component handles user login and registration
+ * @returns React component
+ */
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, register } = useUser();
   const { toast } = useToast();
 
+  // Login form
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: "",
-      password: "",
-    },
-  });
-
-  const registerForm = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      username: "",
       email: "",
       password: "",
     },
+    mode: "onChange",
   });
 
+  // Register form
+  const registerForm = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      firstName: "",
+      email: "",
+      password: "",
+    },
+    mode: "onChange",
+  });
+
+  /**
+   * Handle authentication response
+   * @param result - Authentication result
+   * @param action - Authentication action type
+   * @returns boolean indicating success
+   */
+  const handleAuthResponse = (result: AuthResponse, action: 'Login' | 'Registration'): boolean => {
+    if (!result.ok) {
+      toast({
+        variant: "destructive",
+        title: `${action} Failed`,
+        description: result.message ?? `${action} failed. Please try again.`
+      });
+      return false;
+    }
+
+    toast({
+      title: "Success",
+      description: result.message ?? (action === 'Login' ? "Welcome back!" : "Account created successfully!")
+    });
+    return true;
+  };
+
+  /**
+   * Handle form submission
+   * @param data - Form data
+   */
   const onSubmit = async (data: LoginFormData | RegisterFormData) => {
     try {
       setIsSubmitting(true);
 
       if (isLogin) {
-        const result = await login({
-          username: data.username,
+        const loginData: InsertUser = {
+          email: data.email,
           password: data.password,
-          email: data.username, // Allow login with email
-          role: "user"
-        });
+        };
 
-        if (!result.ok) {
-          toast({
-            variant: "destructive",
-            title: "Login Failed",
-            description: result.message
-          });
-          return;
-        }
-
-        toast({
-          title: "Success",
-          description: result.message || "Welcome back!"
-        });
+        const result = await login(loginData);
+        handleAuthResponse(result, 'Login');
       } else {
-        const result = await register({
-          username: data.username,
-          password: data.password,
-          email: 'email' in data ? data.email : data.username,
-          role: "user"
-        });
+        const registerData = data as RegisterFormData;
+        // Generate username from first name
+        const baseUsername = registerData.firstName
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '') // Remove special characters
+          .replace(/\s+/g, ''); // Remove spaces
 
-        if (!result.ok) {
-          toast({
-            variant: "destructive",
-            title: "Registration Failed",
-            description: result.message
-          });
-          return;
-        }
+        const newUser: InsertUser = {
+          email: registerData.email,
+          password: registerData.password,
+          firstName: registerData.firstName,
+          username: baseUsername, // This will be properly handled on the server
+          role: "user",
+          profileCompleted: false
+        };
 
-        toast({
-          title: "Success",
-          description: result.message || "Account created successfully!"
-        });
+        const result = await register(newUser);
+        handleAuthResponse(result, 'Registration');
       }
-    } catch (error: any) {
+    } catch (error) {
+      const authError = error as AuthError;
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "An unexpected error occurred. Please try again."
+        description: authError.message ?? "An unexpected error occurred. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Get the current form based on mode
   const form = isLogin ? loginForm : registerForm;
 
   return (
@@ -115,56 +154,102 @@ export default function AuthPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">
-                {isLogin ? "Username or Email" : "Username"}
-              </Label>
-              <Input
-                id="username"
-                {...form.register("username")}
-                disabled={isSubmitting}
-              />
-              {form.formState.errors.username && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.username.message}
-                </p>
-              )}
-            </div>
-
+          <form 
+            onSubmit={form.handleSubmit(onSubmit)} 
+            className="space-y-4"
+            noValidate
+          >
             {!isLogin && (
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="register-firstname">First Name</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  {...form.register("email")}
+                  id="register-firstname"
+                  type="text"
+                  autoComplete="given-name"
+                  placeholder="Enter your first name"
+                  aria-invalid={!!form.formState.errors.firstName}
+                  aria-describedby={
+                    form.formState.errors.firstName 
+                      ? "register-firstname-error" 
+                      : undefined
+                  }
+                  {...form.register("firstName")}
                   disabled={isSubmitting}
                 />
-                {form.formState.errors.email && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.email.message}
+                {form.formState.errors.firstName && (
+                  <p 
+                    className="text-sm text-destructive"
+                    id="register-firstname-error"
+                    role="alert"
+                  >
+                    {form.formState.errors.firstName.message}
                   </p>
                 )}
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor={`${isLogin ? 'login' : 'register'}-email`}>
+                Email
+              </Label>
               <Input
-                id="password"
+                id={`${isLogin ? 'login' : 'register'}-email`}
+                type="email"
+                autoComplete="email"
+                aria-invalid={!!form.formState.errors.email}
+                aria-describedby={
+                  form.formState.errors.email 
+                    ? `${isLogin ? 'login' : 'register'}-email-error` 
+                    : undefined
+                }
+                {...form.register("email")}
+                disabled={isSubmitting}
+              />
+              {form.formState.errors.email && (
+                <p 
+                  className="text-sm text-destructive"
+                  id={`${isLogin ? 'login' : 'register'}-email-error`}
+                  role="alert"
+                >
+                  {form.formState.errors.email.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor={`${isLogin ? 'login' : 'register'}-password`}>
+                Password
+              </Label>
+              <Input
+                id={`${isLogin ? 'login' : 'register'}-password`}
                 type="password"
+                autoComplete={isLogin ? "current-password" : "new-password"}
+                aria-invalid={!!form.formState.errors.password}
+                aria-describedby={
+                  form.formState.errors.password 
+                    ? `${isLogin ? 'login' : 'register'}-password-error` 
+                    : undefined
+                }
                 {...form.register("password")}
                 disabled={isSubmitting}
               />
               {form.formState.errors.password && (
-                <p className="text-sm text-destructive">
+                <p 
+                  className="text-sm text-destructive"
+                  id={`${isLogin ? 'login' : 'register'}-password-error`}
+                  role="alert"
+                >
                   {form.formState.errors.password.message}
                 </p>
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isSubmitting || !form.formState.isValid}
+              aria-busy={isSubmitting}
+            >
               {isSubmitting
                 ? "Please wait..."
                 : isLogin

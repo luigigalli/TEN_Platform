@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, json, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, json, numeric, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -14,27 +14,31 @@ export type CollaborationSettings = z.infer<typeof collaborationSettingsSchema>;
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  username: text("username").unique().notNull(),
+  username: text("username").unique(),  // Generated from firstName
   password: text("password").notNull(),
   email: text("email").unique().notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name"),
   role: text("role").notNull().default("user"),
-  fullName: text("full_name"),
   bio: text("bio"),
   avatar: text("avatar"),
   languages: json("languages").default([]),
+  profileCompleted: boolean("profile_completed").default(false),
   createdAt: timestamp("created_at").defaultNow()
 });
 
 // Create a more robust validation schema for user registration
 export const insertUserSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   email: z.string().email("Invalid email format"),
+  firstName: z.string().min(2, "First name is required"),
+  lastName: z.string().optional(),
+  username: z.string().optional(),  // Will be generated from firstName
   role: z.enum(["user", "expert", "provider", "admin"]).default("user"),
-  fullName: z.string().optional(),
   bio: z.string().optional(),
   avatar: z.string().optional(),
-  languages: z.array(z.string()).optional()
+  languages: z.array(z.string()).optional(),
+  profileCompleted: z.boolean().optional()
 });
 
 export const selectUserSchema = createSelectSchema(users);
@@ -45,14 +49,17 @@ export const services = pgTable("services", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description"),
-  price: decimal("price").notNull(),
+  price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   location: text("location").notNull(),
-  providerId: integer("provider_id").references(() => users.id),
-  category: text("category").notNull(),
-  images: json("images").default([]),
-  availability: json("availability").default([]),
-  createdAt: timestamp("created_at").defaultNow()
+  providerId: integer("provider_id").references(() => users.id).notNull(),
+  category: text("category").notNull().default("General"),
+  images: json("images").$type<string[]>().default([]),
+  availability: json("availability").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export type Service = typeof services.$inferSelect;
+export type InsertService = typeof services.$inferInsert;
 
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
@@ -95,17 +102,29 @@ export const posts = pgTable("posts", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+// Messages
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
-  senderId: integer("sender_id").references(() => users.id).notNull(),
-  receiverId: integer("receiver_id").references(() => users.id).notNull(),
-  conversationId: text("conversation_id").notNull(),
+  senderId: integer("sender_id")
+    .notNull()
+    .references(() => users.id),
+  receiverId: integer("receiver_id")
+    .notNull()
+    .references(() => users.id),
   message: text("message").notNull(),
-  status: text("status").notNull().default("unread"),
-  messageType: text("message_type").notNull(),
+  messageType: text("message_type", {
+    enum: ["expert_inquiry", "trip_discussion", "booking_support", "admin_notice"],
+  }).notNull(),
   contextId: integer("context_id"),
-  contextType: text("context_type"),
-  createdAt: timestamp("created_at").defaultNow()
+  contextType: text("context_type", {
+    enum: ["trip", "booking", "service"],
+  }),
+  conversationId: text("conversation_id").notNull(),
+  status: text("status", {
+    enum: ["sent", "delivered", "read"],
+  }).notNull().default("sent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const tripMembers = pgTable("trip_members", {
@@ -127,6 +146,10 @@ export const tripActivities = pgTable("trip_activities", {
   metadata: json("metadata").default({}),
   createdAt: timestamp("created_at").defaultNow()
 });
+
+// Types
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = typeof messages.$inferInsert;
 
 // Add relations
 export const messagesRelations = relations(messages, ({ one }) => ({
@@ -182,8 +205,16 @@ export const insertTripSchema = z.object({
   description: z.string().optional(),
   userId: z.number(),
   destination: z.string().min(1, "Destination is required"),
-  startDate: z.string().transform(str => str ? new Date(str) : null),
-  endDate: z.string().transform(str => str ? new Date(str) : null),
+  startDate: z.string().nullable().transform(str => {
+    if (!str) return null;
+    const date = new Date(str);
+    return date.toISOString();
+  }),
+  endDate: z.string().nullable().transform(str => {
+    if (!str) return null;
+    const date = new Date(str);
+    return date.toISOString();
+  }),
   isPrivate: z.boolean().optional(),
   collaborationSettings: collaborationSettingsSchema.optional(),
   itinerary: z.array(z.any()).optional()
@@ -223,17 +254,12 @@ export const selectMessageSchema = createSelectSchema(messages);
 export const insertTripMemberSchema = createInsertSchema(tripMembers);
 export const insertTripActivitySchema = createInsertSchema(tripActivities);
 
-
 export type User = typeof users.$inferSelect;
 export type Trip = typeof trips.$inferSelect;
 export type Post = typeof posts.$inferSelect;
-export type Service = typeof services.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertTrip = z.infer<typeof insertTripSchema>;
-export type InsertService = typeof services.$inferInsert;
 export type InsertBooking = z.infer<typeof bookingValidationSchema>;
-export type Message = typeof messages.$inferSelect;
-export type InsertMessage = typeof messages.$inferInsert;
 export type TripMember = typeof tripMembers.$inferSelect;
 export type InsertTripMember = typeof tripMembers.$inferInsert;
 export type TripActivity = typeof tripActivities.$inferSelect;
