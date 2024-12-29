@@ -1,51 +1,59 @@
 import { z } from 'zod';
 import { config as dotenv } from 'dotenv';
-import { configSchema, portConfigSchema, Environment, type Config, type PortConfig } from './validation';
-import { EnvironmentConfigError } from '../errors/index';
+import { EnvironmentConfigError } from '../errors';
 
-// Load environment variables first
+// Load environment variables
 if (process.env.NODE_ENV !== 'production') {
   dotenv();
 }
 
-// Environment detection utilities
+// Environment definitions
+export const Environment = {
+  Development: 'development',
+  Production: 'production',
+} as const;
+
+export type Environment = (typeof Environment)[keyof typeof Environment];
+
+// Environment detection
 export const isReplit = Boolean(process.env.REPL_ID && process.env.REPL_OWNER);
 export const isDevelopment = process.env.NODE_ENV !== 'production';
-export const currentEnvironment: Environment = isDevelopment ? Environment.Development : Environment.Production;
+export const currentEnvironment: Environment = isDevelopment 
+  ? Environment.Development 
+  : Environment.Production;
 
-// Get environment-aware port configuration
-function getPortConfig(): PortConfig {
-  try {
-    const defaultPort = 5000;
-    const port = process.env.PORT ? parseInt(process.env.PORT, 10) : defaultPort;
+// Configuration schemas
+const portConfigSchema = z.object({
+  port: z.number().int().min(1024).max(65535),
+  host: z.string().min(1),
+});
 
-    // Always bind to all interfaces (0.0.0.0) in development or Replit
-    const host = '0.0.0.0';  // Simplified for consistency
+const serverConfigSchema = z.object({
+  port: portConfigSchema.shape.port,
+  host: portConfigSchema.shape.host,
+  corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)])),
+});
 
-    const config = { port, host };
-    return portConfigSchema.parse(config);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new EnvironmentConfigError(
-        'Invalid port configuration', 
-        { zodError: error.errors }
-      );
-    }
-    throw new EnvironmentConfigError('Failed to configure port', { 
-      error: error instanceof Error ? error.message : String(error) 
-    });
-  }
-}
+const configSchema = z.object({
+  env: z.nativeEnum(Environment),
+  server: serverConfigSchema,
+  database: z.object({
+    url: z.string().min(1),
+  }),
+});
 
-// Build the configuration with validation
+// Type exports
+export type Config = z.infer<typeof configSchema>;
+export type PortConfig = z.infer<typeof portConfigSchema>;
+
+// Build configuration
 function buildConfig(): Config {
   try {
-    const portConfig = getPortConfig();
-
     const config = {
       env: currentEnvironment,
       server: {
-        ...portConfig,
+        port: 5000,
+        host: '0.0.0.0',
         corsOrigins: [
           'http://localhost:5000',
           'http://127.0.0.1:5000',
@@ -62,18 +70,13 @@ function buildConfig(): Config {
     return configSchema.parse(config);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new EnvironmentConfigError(
-        'Configuration validation failed', 
-        { zodError: error.errors }
-      );
+      throw new EnvironmentConfigError('Invalid configuration', { zodError: error.errors });
     }
-    throw new EnvironmentConfigError('Failed to build configuration', { 
-      error: error instanceof Error ? error.message : String(error) 
-    });
+    throw new EnvironmentConfigError('Failed to build configuration');
   }
 }
 
-// Export the validated configuration
+// Export validated configuration
 export const config = buildConfig();
 
 // Export types and utilities

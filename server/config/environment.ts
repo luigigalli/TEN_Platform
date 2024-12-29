@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EnvironmentConfigError } from '../errors';
 
 // Environment type definition
 export const Environment = {
@@ -23,8 +24,19 @@ export type PortConfig = z.infer<typeof portConfigSchema>;
 
 // Get environment-aware port configuration
 export function getPortConfig(): PortConfig {
-  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
-  const host = isReplit || isDevelopment ? '0.0.0.0' : (process.env.HOST || 'localhost');
-  
-  return portConfigSchema.parse({ port, host });
+  try {
+    // For consistency across environments, we'll always use port 5000
+    // This simplifies development and deployment while avoiding conflicts
+    const config = {
+      port: 5000,
+      host: '0.0.0.0'
+    };
+
+    return portConfigSchema.parse(config);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new EnvironmentConfigError('Invalid port configuration', { zodError: error.errors });
+    }
+    throw new EnvironmentConfigError('Failed to configure port');
+  }
 }
