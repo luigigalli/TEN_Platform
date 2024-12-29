@@ -7,12 +7,22 @@ export class ServerError extends Error {
     message: string,
     public readonly code: string,
     public readonly statusCode: number = 500,
-    public readonly cause?: Error
+    public readonly details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'ServerError';
-    if (cause) {
-      this.cause = cause;
-    }
+
+    // Maintain proper prototypical inheritance
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+
+  toJSON() {
+    return {
+      name: this.name,
+      message: this.message,
+      code: this.code,
+      statusCode: this.statusCode,
+      details: this.details
+    };
   }
 }
