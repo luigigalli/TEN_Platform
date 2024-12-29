@@ -5,9 +5,6 @@ import cors from "cors";
 import { config, isDevelopment } from "./config";
 import { ServerError } from "./errors/index";
 
-// Re-export ServerError for backward compatibility
-export { ServerError } from "./errors/index";
-
 // Initialize Express application with proper error handling
 async function initializeApp() {
   try {
