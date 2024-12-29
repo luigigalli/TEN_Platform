@@ -23,15 +23,53 @@ import {
 } from "@db/schema";
 import { eq, or, and, desc } from "drizzle-orm";
 import { createPaymentIntent, confirmPayment } from "./payment";
+import { parseISO, isValid, format } from "date-fns";
+
+// Custom type for request with authenticated user
+interface AuthenticatedRequest extends Express.Request {
+  user?: {
+    id: number;
+    username: string;
+    email: string;
+    role: string;
+  };
+  isAuthenticated(): boolean;
+}
+
+// Helper functions for date handling
+function parseDate(dateString: string | Date | null): Date | null {
+  if (!dateString) return null;
+  
+  try {
+    const date = typeof dateString === 'string' ? parseISO(dateString) : dateString;
+    return isValid(date) ? date : null;
+  } catch (error) {
+    console.error('Date parsing error:', error);
+    return null;
+  }
+}
+
+function formatDate(date: Date | string | null): string | null {
+  if (!date) return null;
+  
+  try {
+    const parsedDate = typeof date === 'string' ? parseISO(date) : date;
+    return isValid(parsedDate) ? format(parsedDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx") : null;
+  } catch (error) {
+    console.error('Date formatting error:', error);
+    return null;
+  }
+}
 
 export function registerRoutes(app: Express): Server {
   // Set up authentication first, before any other routes
   setupAuth(app);
 
-  // Authentication logging middleware
-  app.use((req, res, next) => {
+  // Authentication logging middleware with proper date handling
+  app.use((req: AuthenticatedRequest, res, next) => {
     if (req.path.startsWith('/api/')) {
-      console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - User: ${req.user?.username || 'anonymous'}`);
+      const timestamp = formatDate(new Date()) ?? new Date().toISOString();
+      console.log(`${timestamp} - ${req.method} ${req.path} - User: ${req.user?.username || 'anonymous'}`);
       if (req.method === 'POST') {
         console.log('Request body:', req.body ? JSON.stringify(req.body, null, 2) : 'No body');
       }
@@ -40,34 +78,52 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Trip collaboration endpoints
-  app.get("/api/trips/:tripId/members", async (req, res) => {
+  app.get("/api/trips/:tripId/members", async (req: AuthenticatedRequest, res) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
       const tripId = parseInt(req.params.tripId);
+      if (isNaN(tripId)) {
+        return res.status(400).json({ error: "Invalid trip ID" });
+      }
+
       const members = await db
         .select()
         .from(tripMembers)
         .where(eq(tripMembers.tripId, tripId))
         .orderBy(desc(tripMembers.joinedAt));
 
-      res.json(members);
-    } catch (error: any) {
+      // Format dates in the response
+      const formattedMembers = members.map(member => ({
+        ...member,
+        joinedAt: formatDate(member.joinedAt),
+        updatedAt: formatDate(member.updatedAt),
+      }));
+
+      res.json(formattedMembers);
+    } catch (error) {
       console.error('Trip members fetch error:', error);
-      res.status(500).send(error.message);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
     }
   });
 
-  app.post("/api/trips/:tripId/members", async (req, res) => {
+  app.post("/api/trips/:tripId/members", async (req: AuthenticatedRequest, res) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
       const tripId = parseInt(req.params.tripId);
+      if (isNaN(tripId)) {
+        return res.status(400).json({ error: "Invalid trip ID" });
+      }
+
       const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
 
       // Check if the user has permission to invite
       const [trip] = await db
@@ -77,12 +133,12 @@ export function registerRoutes(app: Express): Server {
         .limit(1);
 
       if (!trip) {
-        return res.status(404).send("Trip not found");
+        return res.status(404).json({ error: "Trip not found" });
       }
 
-      const isOwner = trip.userId === (req.user as any).id;
-      if (!isOwner && !trip.collaborationSettings.canInvite) {
-        return res.status(403).send("You don't have permission to invite members");
+      const isOwner = trip.userId === req.user?.id;
+      if (!isOwner && !trip.collaborationSettings?.canInvite) {
+        return res.status(403).json({ error: "You don't have permission to invite members" });
       }
 
       // Find user by email
@@ -93,7 +149,7 @@ export function registerRoutes(app: Express): Server {
         .limit(1);
 
       if (!invitedUser) {
-        return res.status(404).send("User not found");
+        return res.status(404).json({ error: "User not found" });
       }
 
       // Check if user is already a member
@@ -109,21 +165,24 @@ export function registerRoutes(app: Express): Server {
         .limit(1);
 
       if (existingMember) {
-        return res.status(400).send("User is already a member of this trip");
+        return res.status(400).json({ error: "User is already a member of this trip" });
       }
 
-      // Create trip member
+      // Create trip member with proper date handling
+      const now = new Date();
       const result = insertTripMemberSchema.safeParse({
         tripId,
         userId: invitedUser.id,
         role: "member",
-        status: "pending"
+        status: "pending",
+        joinedAt: formatDate(now),
+        updatedAt: formatDate(now),
       });
 
       if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
+        });
       }
 
       const [member] = await db
@@ -131,29 +190,44 @@ export function registerRoutes(app: Express): Server {
         .values(result.data)
         .returning();
 
-      // Create activity
+      // Create activity with proper date handling
       await db.insert(tripActivities).values({
         tripId,
-        createdBy: (req.user as any).id,
+        createdBy: req.user?.id,
         type: "member_invited",
-        content: `invited ${invitedUser.username} to join the trip`
+        content: `invited ${invitedUser.username} to join the trip`,
+        createdAt: formatDate(now),
       });
 
-      res.json(member);
-    } catch (error: any) {
+      // Format dates in the response
+      const formattedMember = {
+        ...member,
+        joinedAt: formatDate(member.joinedAt),
+        updatedAt: formatDate(member.updatedAt),
+      };
+
+      res.json(formattedMember);
+    } catch (error) {
       console.error('Trip member creation error:', error);
-      res.status(500).send(error.message);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
     }
   });
 
-  app.patch("/api/trips/:tripId/settings", async (req, res) => {
+  app.patch("/api/trips/:tripId/settings", async (req: AuthenticatedRequest, res) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
       const tripId = parseInt(req.params.tripId);
+      if (isNaN(tripId)) {
+        return res.status(400).json({ error: "Invalid trip ID" });
+      }
+
       const { collaborationSettings } = req.body;
+      if (!collaborationSettings) {
+        return res.status(400).json({ error: "Collaboration settings are required" });
+      }
 
       // Verify ownership
       const [trip] = await db
@@ -163,43 +237,61 @@ export function registerRoutes(app: Express): Server {
         .limit(1);
 
       if (!trip) {
-        return res.status(404).send("Trip not found");
+        return res.status(404).json({ error: "Trip not found" });
       }
 
-      if (trip.userId !== (req.user as any).id) {
-        return res.status(403).send("Only the trip owner can modify settings");
+      if (trip.userId !== req.user?.id) {
+        return res.status(403).json({ error: "Only the trip owner can modify settings" });
       }
 
-      // Update settings
+      // Update settings with proper date handling
+      const now = new Date();
       const [updatedTrip] = await db
         .update(trips)
-        .set({ collaborationSettings })
+        .set({ 
+          collaborationSettings,
+          updatedAt: formatDate(now),
+        })
         .where(eq(trips.id, tripId))
         .returning();
 
-      // Create activity
+      // Create activity with proper date handling
       await db.insert(tripActivities).values({
         tripId,
-        createdBy: (req.user as any).id,
+        createdBy: req.user?.id,
         type: "settings_updated",
-        content: "updated trip collaboration settings"
+        content: "updated trip collaboration settings",
+        createdAt: formatDate(now),
       });
 
-      res.json(updatedTrip);
-    } catch (error: any) {
+      // Format dates in the response
+      const formattedTrip = {
+        ...updatedTrip,
+        createdAt: formatDate(updatedTrip.createdAt),
+        updatedAt: formatDate(updatedTrip.updatedAt),
+        startDate: formatDate(updatedTrip.startDate),
+        endDate: formatDate(updatedTrip.endDate),
+      };
+
+      res.json(formattedTrip);
+    } catch (error) {
       console.error('Trip settings update error:', error);
-      res.status(500).send(error.message);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
     }
   });
 
-  // Trip listing endpoint
-  app.get("/api/trips", async (req, res) => {
+  // Trip listing endpoint with proper date handling
+  app.get("/api/trips", async (req: AuthenticatedRequest, res) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
-      const userId = (req.user as any).id;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "User ID not found" });
+      }
+
       console.log('Fetching trips for user:', userId);
 
       // First get all trips where user is the owner
@@ -235,40 +327,56 @@ export function registerRoutes(app: Express): Server {
         new Map(combinedTrips.map(trip => [trip.id, trip])).values()
       );
 
-      // Sort by created date
-      const sortedTrips = uniqueTrips.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      // Sort by created date with proper date handling
+      const sortedTrips = uniqueTrips.sort((a, b) => {
+        const dateA = parseDate(a.createdAt);
+        const dateB = parseDate(b.createdAt);
+        return dateB && dateA ? dateB.getTime() - dateA.getTime() : 0;
+      });
 
-      console.log('Returning trips:', sortedTrips.length);
-      res.json(sortedTrips);
-    } catch (error: any) {
+      // Format dates in the response
+      const formattedTrips = sortedTrips.map(trip => ({
+        ...trip,
+        createdAt: formatDate(trip.createdAt),
+        updatedAt: formatDate(trip.updatedAt),
+        startDate: formatDate(trip.startDate),
+        endDate: formatDate(trip.endDate),
+      }));
+
+      console.log('Returning trips:', formattedTrips.length);
+      res.json(formattedTrips);
+    } catch (error) {
       console.error('Trips fetch error:', error);
-      res.status(500).send(error.message);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
     }
   });
 
-  // Trip creation endpoint
-  app.post("/api/trips", async (req, res) => {
+  // Trip creation endpoint with proper date handling
+  app.post("/api/trips", async (req: AuthenticatedRequest, res) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
+      const now = new Date();
       const result = insertTripSchema.safeParse({
         ...req.body,
-        userId: (req.user as any).id,
+        userId: req.user?.id,
         collaborationSettings: {
           canInvite: false,
           canEdit: false,
           canComment: true
-        }
+        },
+        createdAt: formatDate(now),
+        updatedAt: formatDate(now),
+        startDate: req.body.startDate ? formatDate(parseDate(req.body.startDate)) : null,
+        endDate: req.body.endDate ? formatDate(parseDate(req.body.endDate)) : null,
       });
 
       if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
+        });
       }
 
       const [trip] = await db
@@ -276,298 +384,32 @@ export function registerRoutes(app: Express): Server {
         .values(result.data)
         .returning();
 
-      // Create initial activity
+      // Create initial activity with proper date handling
       await db.insert(tripActivities).values({
         tripId: trip.id,
-        createdBy: (req.user as any).id,
+        createdBy: req.user?.id,
         type: "trip_created",
-        content: "created the trip"
+        content: "created the trip",
+        createdAt: formatDate(now),
       });
 
-      res.json(trip);
-    } catch (error: any) {
-      console.error('Trip creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Messages endpoints with proper type handling
-  app.post("/api/messages", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      console.log('Processing message:', req.body);
-      const messageData = {
-        ...req.body,
-        senderId: (req.user as any).id,
-        status: 'unread' as const,
+      // Format dates in the response
+      const formattedTrip = {
+        ...trip,
+        createdAt: formatDate(trip.createdAt),
+        updatedAt: formatDate(trip.updatedAt),
+        startDate: formatDate(trip.startDate),
+        endDate: formatDate(trip.endDate),
       };
 
-      const result = insertMessageSchema.safeParse(messageData);
-
-      if (!result.success) {
-        console.error('Message validation error:', result.error);
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
-      }
-
-      const [message] = await db
-        .insert(messages)
-        .values(result.data)
-        .returning();
-
-      console.log('Message created successfully:', message);
-      res.json(message);
-    } catch (error: any) {
-      console.error('Message creation error:', error);
-      res.status(500).send(error.message);
+      res.json(formattedTrip);
+    } catch (error) {
+      console.error('Trip creation error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
     }
   });
 
-
-
-  app.get("/api/trips/:tripId/activities", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const tripId = parseInt(req.params.tripId);
-      const activities = await db
-        .select()
-        .from(tripActivities)
-        .where(eq(tripActivities.tripId, tripId))
-        .orderBy(desc(tripActivities.createdAt));
-
-      res.json(activities);
-    } catch (error: any) {
-      console.error('Trip activities fetch error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Messages endpoints
-  app.get("/api/messages/:conversationId?", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const { conversationId } = req.params;
-      const userId = (req.user as any).id;
-
-      const userMessages = await db
-        .select()
-        .from(messages)
-        .where(
-          conversationId
-            ? eq(messages.conversationId, conversationId)
-            : or(
-                eq(messages.senderId, userId),
-                eq(messages.receiverId, userId)
-              )
-        )
-        .orderBy(desc(messages.createdAt));
-
-      res.json(userMessages);
-    } catch (error: any) {
-      console.error('Messages fetch error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-
-  app.post("/api/messages/:messageId/read", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const { messageId } = req.params;
-      const userId = (req.user as any).id;
-
-      const [message] = await db
-        .select()
-        .from(messages)
-        .where(eq(messages.id, parseInt(messageId)))
-        .limit(1);
-
-      if (!message) {
-        return res.status(404).send("Message not found");
-      }
-
-      if (message.receiverId !== userId) {
-        return res.status(403).send("Not authorized to mark this message as read");
-      }
-
-      const [updatedMessage] = await db
-        .update(messages)
-        .set({ status: "read" })
-        .where(eq(messages.id, parseInt(messageId)))
-        .returning();
-
-      res.json(updatedMessage);
-    } catch (error: any) {
-      console.error('Message status update error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Services endpoints
-  app.get("/api/services", async (_req, res) => {
-    try {
-      const allServices = await db.select().from(services);
-      res.json(allServices);
-    } catch (error: any) {
-      console.error('Services fetch error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.post("/api/services", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const result = insertServiceSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
-      }
-
-      const [service] = await db
-        .insert(services)
-        .values({
-          ...result.data,
-          providerId: (req.user as any).id,
-        })
-        .returning();
-
-      res.json(service);
-    } catch (error: any) {
-      console.error('Service creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Bookings endpoints
-  app.post("/api/bookings", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      console.log('Processing booking request:', req.body);
-      const result = insertBookingSchema.safeParse(req.body);
-
-      if (!result.success) {
-        console.error('Booking validation error:', result.error);
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map((i) => i.message).join(", ")
-        );
-      }
-
-      // Create booking with pending_payment status
-      const [booking] = await db
-        .insert(bookings)
-        .values({
-          startDate: new Date(result.data.startDate),
-          endDate: result.data.endDate ? new Date(result.data.endDate) : null,
-          totalPrice: result.data.totalPrice.toString(),
-          status: "pending_payment",
-          notes: result.data.notes,
-          serviceId: result.data.serviceId,
-          userId: (req.user as any).id,
-        })
-        .returning();
-
-      console.log('Booking created successfully:', booking);
-
-      // Create payment intent
-      const paymentIntent = await createPaymentIntent(booking.id);
-
-      res.json({
-        booking,
-        clientSecret: paymentIntent.client_secret
-      });
-    } catch (error: any) {
-      console.error('Booking creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Payment endpoints
-  app.post("/api/payments/confirm", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const { bookingId, paymentIntentId } = req.body;
-      if (!bookingId || !paymentIntentId) {
-        return res.status(400).send("Missing bookingId or paymentIntentId");
-      }
-
-      const result = await confirmPayment(bookingId, paymentIntentId);
-      res.json(result);
-    } catch (error: any) {
-      console.error('Payment confirmation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-
-  // Posts endpoints
-  app.get("/api/posts", async (_req, res) => {
-    try {
-      const userPosts = await db.select().from(posts);
-      res.json(userPosts);
-    } catch (error: any) {
-      console.error('Posts fetch error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  app.post("/api/posts", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const [post] = await db
-        .insert(posts)
-        .values({
-          ...req.body,
-          userId: (req.user as any).id,
-        })
-        .returning();
-
-      res.json(post);
-    } catch (error: any) {
-      console.error('Post creation error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  // Add users endpoint for profile viewing
-  app.get("/api/users", async (_req, res) => {
-    try {
-      const allUsers = await db.select().from(users);
-      res.json(allUsers.map(user => ({
-        ...user,
-        password: undefined
-      })));
-    } catch (error: any) {
-      console.error('Users fetch error:', error);
-      res.status(500).send(error.message);
-    }
-  });
-
-  const httpServer = createServer(app);
-  return httpServer;
+  // Create HTTP server
+  const server = createServer(app);
+  return server;
 }
