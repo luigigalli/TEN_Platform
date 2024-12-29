@@ -5,14 +5,18 @@ import { z } from "zod";
 // Validation schemas
 const serviceSchema = z.object({
   id: z.number().int().positive(),
-  name: z.string().min(1),
-  description: z.string().min(1),
-  price: z.number().positive(),
-  duration: z.number().int().positive(),
-  // Add other fields as needed
+  title: z.string().min(1),
+  description: z.string().nullable(),
+  price: z.string(),
+  location: z.string().min(1),
+  providerId: z.number().int().positive(),
+  category: z.string(),
+  images: z.array(z.string()).default([]),
+  availability: z.array(z.string()).default([]),
+  createdAt: z.string().datetime(),
 });
 
-const insertServiceSchema = serviceSchema.omit({ id: true });
+const insertServiceSchema = serviceSchema.omit({ id: true, createdAt: true });
 
 const serviceResponseSchema = z.object({
   service: serviceSchema,
@@ -143,6 +147,21 @@ export function useServices(): UseServicesResult {
     error,
   } = useQuery<ServiceData[], ServiceError>({
     queryKey: ["/api/services"],
+    queryFn: async () => {
+      const res = await fetch("/api/services", {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+        },
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        throw await ServiceError.fromResponse(res);
+      }
+
+      return res.json();
+    },
     retry: 3,
     staleTime: 5 * 60 * 1000, // 5 minutes
     select: (data) => {

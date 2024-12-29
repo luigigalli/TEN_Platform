@@ -12,13 +12,13 @@ import type { InsertUser } from "@db/schema";
 
 // Form validation schemas
 const loginSchema = z.object({
-  username: z.string().min(1, "Username or email is required"),
+  email: z.string().email("Invalid email format"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 const registerSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  email: z.string().email("Invalid email"),
+  firstName: z.string().min(2, "First name is required"),
+  email: z.string().email("Invalid email format"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -54,7 +54,7 @@ export default function AuthPage() {
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
     },
     mode: "onChange",
@@ -64,7 +64,7 @@ export default function AuthPage() {
   const registerForm = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      username: "",
+      firstName: "",
       email: "",
       password: "",
     },
@@ -104,21 +104,27 @@ export default function AuthPage() {
 
       if (isLogin) {
         const loginData: InsertUser = {
-          username: data.username,
+          email: data.email,
           password: data.password,
-          email: data.username, // Allow login with email
-          role: "user",
         };
 
         const result = await login(loginData);
         handleAuthResponse(result, 'Login');
       } else {
         const registerData = data as RegisterFormData;
+        // Generate username from first name
+        const baseUsername = registerData.firstName
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '') // Remove special characters
+          .replace(/\s+/g, ''); // Remove spaces
+
         const newUser: InsertUser = {
-          username: registerData.username,
-          password: registerData.password,
           email: registerData.email,
+          password: registerData.password,
+          firstName: registerData.firstName,
+          username: baseUsername, // This will be properly handled on the server
           role: "user",
+          profileCompleted: false
         };
 
         const result = await register(newUser);
@@ -153,61 +159,62 @@ export default function AuthPage() {
             className="space-y-4"
             noValidate
           >
-            <div className="space-y-2">
-              <Label htmlFor={`${isLogin ? 'login' : 'register'}-username`}>
-                {isLogin ? "Username or Email" : "Username"}
-              </Label>
-              <Input
-                id={`${isLogin ? 'login' : 'register'}-username`}
-                type="text"
-                autoComplete={isLogin ? "username" : "new-username"}
-                aria-invalid={!!form.formState.errors.username}
-                aria-describedby={
-                  form.formState.errors.username 
-                    ? `${isLogin ? 'login' : 'register'}-username-error` 
-                    : undefined
-                }
-                {...form.register("username")}
-                disabled={isSubmitting}
-              />
-              {form.formState.errors.username && (
-                <p 
-                  className="text-sm text-destructive"
-                  id={`${isLogin ? 'login' : 'register'}-username-error`}
-                  role="alert"
-                >
-                  {form.formState.errors.username.message}
-                </p>
-              )}
-            </div>
-
             {!isLogin && (
               <div className="space-y-2">
-                <Label htmlFor="register-email">Email</Label>
+                <Label htmlFor="register-firstname">First Name</Label>
                 <Input
-                  id="register-email"
-                  type="email"
-                  autoComplete="email"
-                  aria-invalid={!!form.formState.errors.email}
+                  id="register-firstname"
+                  type="text"
+                  autoComplete="given-name"
+                  placeholder="Enter your first name"
+                  aria-invalid={!!form.formState.errors.firstName}
                   aria-describedby={
-                    form.formState.errors.email 
-                      ? "register-email-error" 
+                    form.formState.errors.firstName 
+                      ? "register-firstname-error" 
                       : undefined
                   }
-                  {...form.register("email")}
+                  {...form.register("firstName")}
                   disabled={isSubmitting}
                 />
-                {form.formState.errors.email && (
+                {form.formState.errors.firstName && (
                   <p 
                     className="text-sm text-destructive"
-                    id="register-email-error"
+                    id="register-firstname-error"
                     role="alert"
                   >
-                    {form.formState.errors.email.message}
+                    {form.formState.errors.firstName.message}
                   </p>
                 )}
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor={`${isLogin ? 'login' : 'register'}-email`}>
+                Email
+              </Label>
+              <Input
+                id={`${isLogin ? 'login' : 'register'}-email`}
+                type="email"
+                autoComplete="email"
+                aria-invalid={!!form.formState.errors.email}
+                aria-describedby={
+                  form.formState.errors.email 
+                    ? `${isLogin ? 'login' : 'register'}-email-error` 
+                    : undefined
+                }
+                {...form.register("email")}
+                disabled={isSubmitting}
+              />
+              {form.formState.errors.email && (
+                <p 
+                  className="text-sm text-destructive"
+                  id={`${isLogin ? 'login' : 'register'}-email-error`}
+                  role="alert"
+                >
+                  {form.formState.errors.email.message}
+                </p>
+              )}
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor={`${isLogin ? 'login' : 'register'}-password`}>

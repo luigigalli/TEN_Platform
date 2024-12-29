@@ -74,8 +74,10 @@ export default function Profile({ userId }: ProfileProps) {
   const userTrips = trips.filter((trip) => trip.userId === user.id);
   const userPosts = posts.filter((post) => post.userId === user.id);
 
-  const getUserInitials = (username: string) => {
-    return username
+  // Get user initials for avatar fallback
+  const getUserInitials = (name: string | undefined | null) => {
+    if (!name) return '';
+    return name
       .split(' ')
       .map(part => part[0]?.toUpperCase() ?? '')
       .slice(0, 2)
@@ -93,7 +95,7 @@ export default function Profile({ userId }: ProfileProps) {
                 alt={`${user.username}'s profile picture`}
               />
               <AvatarFallback>
-                {getUserInitials(user.username)}
+                {getUserInitials(user.fullName || user.username)}
               </AvatarFallback>
             </Avatar>
             <div>

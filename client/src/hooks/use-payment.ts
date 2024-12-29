@@ -27,7 +27,7 @@ const paymentErrorDetailsSchema = z.object({
   code: z.string().optional(),
   declineCode: z.string().optional(),
   type: z.string().optional(),
-  stripeError: z.any().optional(), // Can't strongly type StripeError due to its complexity
+  stripeError: z.any().optional(),
   status: paymentStatusSchema.optional(),
 });
 
@@ -61,11 +61,6 @@ class PaymentError extends Error {
     Object.freeze(this);
   }
 
-  /**
-   * Creates a PaymentError from a StripeError
-   * @param error - The Stripe error object
-   * @returns A new PaymentError instance
-   */
   static fromStripeError(error: StripeError): PaymentError {
     return new PaymentError(error.message || "Stripe error occurred", {
       code: error.code,
@@ -75,11 +70,6 @@ class PaymentError extends Error {
     });
   }
 
-  /**
-   * Creates a PaymentError from an unknown error
-   * @param error - The unknown error object
-   * @returns A new PaymentError instance
-   */
   static fromUnknownError(error: unknown): PaymentError {
     if (error instanceof Error) {
       return new PaymentError(error.message, { code: "unknown_error" });
@@ -93,11 +83,6 @@ interface UsePaymentResult {
   isStripeAvailable: boolean;
 }
 
-/**
- * Validates a client secret
- * @param clientSecret - The client secret to validate
- * @throws {PaymentError} If the client secret is invalid
- */
 function validateClientSecret(clientSecret: string): void {
   if (!clientSecret.startsWith('pi_') && !clientSecret.includes('_secret_')) {
     throw new PaymentError("Invalid client secret format", {
@@ -106,20 +91,10 @@ function validateClientSecret(clientSecret: string): void {
   }
 }
 
-/**
- * Initialize Stripe with publishable key
- * @throws {PaymentError} If Stripe publishable key is not found or invalid
- */
 const initializeStripe = async (): Promise<Stripe | null> => {
   if (!STRIPE_PUBLISHABLE_KEY) {
     console.warn("Stripe publishable key not found. Payment features will be disabled.");
     return null;
-  }
-
-  if (!STRIPE_PUBLISHABLE_KEY.startsWith('pk_')) {
-    throw new PaymentError("Invalid Stripe publishable key format", {
-      code: "invalid_publishable_key"
-    });
   }
 
   try {
@@ -137,21 +112,9 @@ const initializeStripe = async (): Promise<Stripe | null> => {
 
 const stripePromise = initializeStripe();
 
-/**
- * Hook for handling Stripe payments
- * @returns Object containing payment processing function and Stripe availability status
- * @throws {PaymentError} If payment processing fails
- */
 export function usePayment(): UsePaymentResult {
-  /**
-   * Process a payment with Stripe
-   * @param clientSecret - The client secret from the PaymentIntent
-   * @returns Promise resolving to payment result
-   * @throws {PaymentError} If payment processing fails
-   */
   const processPayment = async (clientSecret: string): Promise<PaymentResult> => {
     try {
-      // Validate client secret
       validateClientSecret(clientSecret);
 
       const stripe = await stripePromise;
@@ -182,7 +145,6 @@ export function usePayment(): UsePaymentResult {
         });
       }
 
-      // Validate payment intent status
       if (!paymentStatusSchema.safeParse(paymentIntent.status).success) {
         throw new PaymentError("Invalid payment intent status", {
           code: "invalid_payment_status",
@@ -203,7 +165,6 @@ export function usePayment(): UsePaymentResult {
         status: paymentIntent.status,
       };
 
-      // Validate result before returning
       return paymentResultSchema.parse(result);
     } catch (error) {
       if (error instanceof PaymentError) {

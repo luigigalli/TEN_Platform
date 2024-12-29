@@ -24,14 +24,38 @@ const tripSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   destination: z.string().min(1, "Destination is required"),
-  startDate: z.string().min(1, "Start date is required"),
-  endDate: z.string().min(1, "End date is required"),
+  startDate: z.string()
+    .min(1, "Start date is required")
+    .transform((val) => {
+      console.log('Start date before transform:', val);
+      return val;
+    }),
+  endDate: z.string()
+    .min(1, "End date is required")
+    .transform((val) => {
+      console.log('End date before transform:', val);
+      return val;
+    }),
   isPrivate: z.boolean().default(false),
   collaborationSettings: z.object({
     canInvite: z.boolean().default(false),
     canEdit: z.boolean().default(false),
     canComment: z.boolean().default(true),
   }),
+}).refine((data) => {
+  console.log('Refine validation data:', data);
+  try {
+    const start = new Date(data.startDate);
+    const end = new Date(data.endDate);
+    console.log('Parsed dates:', { start, end });
+    return start <= end;
+  } catch (e) {
+    console.error('Date parsing error:', e);
+    return false;
+  }
+}, {
+  message: "End date must be after or equal to start date",
+  path: ["endDate"],
 });
 
 type TripFormData = z.infer<typeof tripSchema>;
@@ -114,7 +138,56 @@ export default function TripPlanner() {
 
   const onSubmit = async (data: TripFormData) => {
     try {
-      await createTrip(data);
+      console.log('Form submission data:', data);
+      // Ensure dates are in ISO format
+      let startDate: string | null = null;
+      let endDate: string | null = null;
+      
+      try {
+        console.log('Raw start date:', data.startDate);
+        console.log('Raw end date:', data.endDate);
+        
+        // Add time zone offset to the date strings
+        const startDateTime = data.startDate ? new Date(data.startDate) : null;
+        const endDateTime = data.endDate ? new Date(data.endDate) : null;
+        
+        if (startDateTime && endDateTime) {
+          console.log('Parsed start date:', startDateTime);
+          console.log('Parsed end date:', endDateTime);
+          
+          startDate = startDateTime.toISOString();
+          endDate = endDateTime.toISOString();
+          
+          console.log('Formatted start date:', startDate);
+          console.log('Formatted end date:', endDate);
+        }
+      } catch (e) {
+        console.error('Date parsing error:', e);
+        toast({
+          variant: "destructive",
+          title: "Invalid Date Format",
+          description: "Please ensure both dates are properly formatted",
+        });
+        return;
+      }
+
+      if (!startDate || !endDate) {
+        toast({
+          variant: "destructive",
+          title: "Missing Dates",
+          description: "Both start and end dates are required",
+        });
+        return;
+      }
+
+      const formattedData = {
+        ...data,
+        startDate,
+        endDate,
+      };
+
+      console.log('Sending data to server:', formattedData);
+      await createTrip(formattedData);
       setIsDialogOpen(false);
       form.reset();
       toast({
@@ -122,6 +195,7 @@ export default function TripPlanner() {
         description: "Trip created successfully!",
       });
     } catch (error) {
+      console.error('Trip creation error:', error);
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
       toast({
         variant: "destructive",
@@ -201,7 +275,7 @@ export default function TripPlanner() {
                   <Label htmlFor="startDate">Start Date</Label>
                   <Input
                     id="startDate"
-                    type="date"
+                    type="datetime-local"
                     aria-invalid={!!form.formState.errors.startDate}
                     {...form.register("startDate")}
                   />
@@ -216,7 +290,7 @@ export default function TripPlanner() {
                   <Label htmlFor="endDate">End Date</Label>
                   <Input
                     id="endDate"
-                    type="date"
+                    type="datetime-local"
                     aria-invalid={!!form.formState.errors.endDate}
                     {...form.register("endDate")}
                   />

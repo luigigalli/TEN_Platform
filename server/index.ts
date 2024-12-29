@@ -3,6 +3,15 @@ import { registerRoutes } from "./routes";
 import { setupAuth } from "./auth";
 import { setupVite, serveStatic, log } from "./vite";
 import { z } from "zod";
+import { setupServicesRoutes } from "./services";
+import { setupBookingsRoutes } from "./bookings";
+import { setupMessagesRoutes } from "./messages";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Custom error class for server-related errors
 export class ServerError extends Error {
@@ -28,6 +37,12 @@ type ErrorResponse = z.infer<typeof errorResponseSchema>;
 
 // Type-safe express application setup
 const app = express();
+
+// Configure CORS
+app.use(cors({
+  origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+  credentials: true,
+}));
 
 // Configure middleware with proper types
 app.use(express.json({
@@ -108,13 +123,36 @@ app.use((req: Request, res: ResponseWithJson, next: NextFunction) => {
   next();
 });
 
+// Add health check endpoint
+app.get("/api/health", (_req: Request, res: Response) => {
+  res.json({ status: "ok" });
+});
+
 /**
  * Initialize and start the server
  * @throws {ServerError} If server initialization fails
  */
 async function initializeServer(): Promise<void> {
   try {
+    setupAuth(app);
+    setupServicesRoutes(app);
+    setupBookingsRoutes(app);
+    setupMessagesRoutes(app);
     const server = registerRoutes(app);
+
+    // Setup Vite and client-side routing
+    await setupVite(app, server);
+
+    // Catch-all route for client-side routing
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        next();
+      } else {
+        const clientDir = path.resolve(__dirname, '..', 'client');
+        const indexPath = path.join(clientDir, 'index.html');
+        res.sendFile(indexPath);
+      }
+    });
 
     // Global error handler with proper types
     app.use((err: Error | ServerError, _req: Request, res: Response, _next: NextFunction) => {
@@ -157,11 +195,11 @@ async function initializeServer(): Promise<void> {
     }
 
     // Start server
-    const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
+    const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
     if (isNaN(PORT)) {
       throw new ServerError(
-        "Invalid PORT environment variable",
-        "INVALID_PORT",
+        'Invalid PORT environment variable',
+        'INVALID_PORT',
         500
       );
     }
@@ -170,15 +208,10 @@ async function initializeServer(): Promise<void> {
       log(`Server listening on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Server initialization error:', error);
-    
-    if (error instanceof ServerError) {
-      throw error;
-    }
-
+    console.error('Server initialization failed:', error);
     throw new ServerError(
-      "Failed to initialize server",
-      "INIT_FAILED",
+      'Failed to initialize server',
+      'INIT_ERROR',
       500,
       error
     );

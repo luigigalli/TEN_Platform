@@ -97,58 +97,47 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
 
       // Process payment
       try {
-        await processPayment(clientSecret);
-        const paymentIntentId = clientSecret.split("_secret_")[0];
+        const paymentResult = await processPayment(clientSecret);
         
-        if (!paymentIntentId) {
-          throw new Error("Invalid payment intent ID");
-        }
-
-        await handlePaymentConfirmation(booking.id, paymentIntentId);
-
+        // Confirm payment
+        await handlePaymentConfirmation(booking.id, paymentResult.paymentIntentId!);
+        
         setIsSuccess(true);
-        setTimeout(onSuccess, 2000); // Show success state for 2 seconds before closing
-
+        onSuccess();
         toast({
           title: "Success",
-          description: "Booking confirmed and payment processed successfully!",
+          description: "Service booked successfully!",
         });
       } catch (error) {
-        const paymentError = error as PaymentError;
-        console.error("Payment processing error:", paymentError);
-        throw new Error(`Payment failed: ${paymentError.message}`);
+        console.error("Payment failed:", error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Payment failed",
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      const bookingError = error as Error;
-      console.error("Booking error:", bookingError);
+      console.error("Booking failed:", error);
       toast({
-        variant: "destructive",
         title: "Error",
-        description: bookingError.message ?? "Failed to process booking and payment",
+        description: error instanceof Error ? error.message : "Failed to create booking",
+        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const today = new Date().toISOString().split('T')[0];
-  const startDate = form.watch("startDate");
-
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="startDate">Start Date</Label>
         <Input
+          type="datetime-local"
           id="startDate"
-          type="date"
           {...form.register("startDate")}
-          min={today}
-          aria-describedby="startDateHelp"
-          disabled={isSubmitting || isSuccess}
+          className="w-full"
         />
-        <p id="startDateHelp" className="text-sm text-muted-foreground">
-          Select when you want the service to start
-        </p>
         {form.formState.errors.startDate && (
           <p className="text-sm text-destructive">
             {form.formState.errors.startDate.message}
@@ -157,61 +146,39 @@ export default function ServiceBookingForm({ service, onSuccess }: ServiceBookin
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="endDate">End Date (Optional)</Label>
+        <Label htmlFor="notes">Notes (Optional)</Label>
         <Input
-          id="endDate"
-          type="date"
-          {...form.register("endDate")}
-          min={startDate || today}
-          aria-describedby="endDateHelp"
-          disabled={isSubmitting || isSuccess || !startDate}
-        />
-        <p id="endDateHelp" className="text-sm text-muted-foreground">
-          Select an end date for multi-day services
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="notes">Special Requests (Optional)</Label>
-        <Input
+          type="text"
           id="notes"
           {...form.register("notes")}
-          placeholder="Any special requirements..."
-          aria-describedby="notesHelp"
-          disabled={isSubmitting || isSuccess}
+          placeholder="Any special requests?"
+          className="w-full"
         />
-        <p id="notesHelp" className="text-sm text-muted-foreground">
-          Add any specific requirements or notes for the service provider
-        </p>
       </div>
 
-      <div className="pt-4">
-        <div className="mb-4 p-4 bg-muted rounded-lg">
-          <h4 className="font-semibold mb-2">Payment Summary</h4>
-          <p className="text-sm text-muted-foreground">
-            Service Price: ${(Number(service.price) || 0).toFixed(2)}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            You will be charged immediately upon booking
-          </p>
+      <div className="flex items-center justify-between pt-4 border-t">
+        <div>
+          <p className="text-sm text-muted-foreground">Total Price</p>
+          <p className="text-lg font-semibold">${Number(service.price).toFixed(2)}</p>
         </div>
+
         <Button 
           type="submit" 
-          className="w-full" 
-          disabled={isSubmitting || isSuccess || !form.formState.isValid}
+          disabled={isSubmitting || isSuccess}
+          className="min-w-[120px]"
         >
-          {isSuccess ? (
-            <div className="flex items-center justify-center">
-              <Check className="mr-2 h-4 w-4" />
-              Booking Confirmed!
-            </div>
-          ) : isSubmitting ? (
-            <div className="flex items-center justify-center">
+          {isSubmitting ? (
+            <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing Payment...
-            </div>
+              Processing...
+            </>
+          ) : isSuccess ? (
+            <>
+              <Check className="mr-2 h-4 w-4" />
+              Booked!
+            </>
           ) : (
-            "Book and Pay Now"
+            "Book Now"
           )}
         </Button>
       </div>

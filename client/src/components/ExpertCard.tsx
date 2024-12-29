@@ -127,11 +127,11 @@ export default function ExpertCard({ expert }: ExpertCardProps) {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Contact {expert.name}</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">Contact {expert.name}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-4">
+          <div className="grid gap-4 py-4">
             <Textarea
               placeholder="Write your message here..."
               value={message}
@@ -140,6 +140,7 @@ export default function ExpertCard({ expert }: ExpertCardProps) {
               aria-label="Message content"
               minLength={1}
               maxLength={1000}
+              className="min-h-[120px] resize-none"
             />
             <Button 
               onClick={handleContact} 

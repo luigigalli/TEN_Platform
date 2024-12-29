@@ -27,7 +27,7 @@ export class AuthError extends Error {
 
 // Validation schemas
 const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  email: z.string().email("Invalid email format"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -134,6 +134,17 @@ const crypto = {
   },
 };
 
+// Middleware to ensure user is authenticated
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({
+    message: "Authentication required",
+    code: "auth_required",
+  });
+}
+
 /**
  * Set up authentication middleware and routes
  * @param app - Express application instance
@@ -174,47 +185,44 @@ export function setupAuth(app: Express): void {
   passport.use(
     new LocalStrategy(
       {
-        usernameField: 'username',
+        usernameField: 'email',
         passwordField: 'password',
       },
-      async (identifier: string, password: string, done) => {
+      async (email: string, password: string, done) => {
         try {
-          console.log(`Attempting login with identifier: ${identifier}`);
+          console.log(`Attempting login with email: ${email}`);
 
           // Validate input
-          const loginResult = loginSchema.safeParse({ username: identifier, password });
+          const loginResult = loginSchema.safeParse({ email, password });
           if (!loginResult.success) {
             return done(null, false, { 
               message: loginResult.error.issues.map(i => i.message).join(", ")
             });
           }
 
-          // Check for both username and email
+          // Check for user by email
           const [user] = await db
             .select()
             .from(users)
-            .where(or(
-              eq(users.username, identifier),
-              eq(users.email, identifier)
-            ))
+            .where(eq(users.email, email))
             .limit(1);
 
           if (!user) {
-            console.log('No user found with identifier:', identifier);
+            console.log('No user found with email:', email);
             return done(null, false, { 
-              message: "Invalid username or email" 
+              message: "Invalid email or password" 
             });
           }
 
           const isMatch = await crypto.compare(password, user.password);
           if (!isMatch) {
-            console.log('Password mismatch for user:', identifier);
+            console.log('Password mismatch for user:', email);
             return done(null, false, { 
-              message: "Incorrect password" 
+              message: "Invalid email or password" 
             });
           }
 
-          console.log('Login successful for user:', identifier);
+          console.log('Login successful for user:', email);
           return done(null, user);
         } catch (error) {
           console.error('Login error:', error);
@@ -285,36 +293,55 @@ export function setupAuth(app: Express): void {
         return res.status(400).json(response);
       }
 
-      const { username, password, email } = result.data;
+      const { username: baseUsername, password, email, firstName } = result.data;
 
-      // Check for existing user with same username or email
-      const [existingUser] = await db
+      // Check for existing user with same email
+      const [existingUserEmail] = await db
         .select()
         .from(users)
-        .where(or(eq(users.username, username), eq(users.email, email)))
+        .where(eq(users.email, email))
         .limit(1);
 
-      if (existingUser) {
-        console.log('User already exists:', username);
+      if (existingUserEmail) {
+        console.log('Email already exists:', email);
         const response: RegistrationResponse = {
           ok: false,
-          message: "Username or email already exists"
+          message: "Email already exists"
         };
         return res.status(400).json(response);
+      }
+
+      // Generate unique username from first name
+      let finalUsername = baseUsername;
+      let counter = 1;
+      
+      while (true) {
+        const [existingUser] = await db
+          .select()
+          .from(users)
+          .where(eq(users.username, finalUsername))
+          .limit(1);
+
+        if (!existingUser) break;
+        
+        finalUsername = `${baseUsername}${counter}`;
+        counter++;
       }
 
       const hashedPassword = await crypto.hash(password);
       const [newUser] = await db
         .insert(users)
         .values({
-          username,
+          username: finalUsername,
           password: hashedPassword,
           email,
+          firstName,
           role: "user" as const,
+          profileCompleted: false
         })
         .returning();
 
-      console.log('User registered successfully:', username);
+      console.log('User registered successfully:', finalUsername);
 
       req.login(newUser, (err) => {
         if (err) {
@@ -433,7 +460,7 @@ export function setupAuth(app: Express): void {
   });
 
   // User info endpoint
-  app.get("/api/user", (req: Request, res: Response) => {
+  app.get("/api/user", requireAuth, (req: Request, res: Response) => {
     if (req.isAuthenticated() && req.user) {
       const user = req.user;
       const response: RegistrationResponse = {

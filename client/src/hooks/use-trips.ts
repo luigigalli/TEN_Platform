@@ -10,8 +10,8 @@ interface TripError extends Error {
 interface CreateTripData extends Partial<Trip> {
   title: string;
   destination: string;
-  startDate: Date;
-  endDate: Date;
+  startDate: string | Date;
+  endDate: string | Date;
 }
 
 interface InviteMemberData {
@@ -75,8 +75,9 @@ export function useTrips(): UseTripsResult {
 
         if (!res.ok) {
           const errorData = await res.json().catch(() => null);
+          console.error('Trip creation error:', errorData);
           const error = new Error(
-            errorData?.message || "Failed to create trip"
+            errorData?.error || "Failed to create trip"
           ) as TripError;
           error.status = res.status;
           error.code = errorData?.code || "create_trip_failed";
@@ -85,6 +86,7 @@ export function useTrips(): UseTripsResult {
 
         return res.json();
       } catch (err) {
+        console.error('Trip creation error:', err);
         if (err instanceof Error) {
           const tripError = err as TripError;
           tripError.code = tripError.code || "unknown_error";

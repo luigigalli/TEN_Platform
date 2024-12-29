@@ -1,6 +1,6 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
 import fs from "fs";
-import path, { dirname } from "path";
+import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer, createLogger, type ViteDevServer, type LogLevel, type UserConfig } from "vite";
 import { type Server } from "http";
@@ -9,7 +9,7 @@ import { z } from "zod";
 import { ServerError } from "./index";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
 // Validation schemas
 const timeFormatSchema = z.object({
@@ -77,106 +77,57 @@ interface ViteSetupOptions extends UserConfig {
  */
 export async function setupVite(app: Express, server: Server): Promise<void> {
   try {
-    const viteOptions: ViteSetupOptions = {
+    const vite = await createViteServer({
       ...viteConfig,
-      configFile: false,
-      customLogger: {
-        ...viteLogger,
-        error: (msg: string, options?: LogOptions) => {
-          if (typeof msg !== "string") {
-            throw new Error("Invalid error message");
-          }
-
-          if (msg.includes("[TypeScript] Found 0 errors. Watching for file changes")) {
-            log("no errors found", "tsc");
-            return;
-          }
-
-          if (msg.includes("[TypeScript] ")) {
-            const [errors, summary] = msg.split("[TypeScript] ", 2);
-            log(`${summary} ${errors}\u001b[0m`, "tsc");
-            return;
-          }
-
-          viteLogger.error(msg, options);
-          process.exit(1);
-        },
-      },
       server: {
         middlewareMode: true,
-        hmr: { server },
+        hmr: {
+          server,
+        },
       },
       appType: "custom",
-    };
+    });
 
-    const vite: ViteDevServer = await createViteServer(viteOptions);
-
-    app.use(vite.middlewares);
-
-    // Type-safe request handler
-    app.use("*", async (req: Request, res: Response, next: NextFunction) => {
-      const url = req.originalUrl;
-
-      if (typeof url !== "string") {
-        throw new ServerError(
-          "Invalid URL",
-          "INVALID_URL",
-          400
-        );
-      }
-
+    // Use Vite's connect instance as middleware
+    app.use(async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const clientTemplate = path.resolve(
-          __dirname,
-          "..",
-          "client",
-          "index.html",
-        );
-
-        // Validate template file exists
-        if (!fs.existsSync(clientTemplate)) {
-          throw new ServerError(
-            "Template file not found",
-            "TEMPLATE_NOT_FOUND",
-            500
-          );
+        // Skip Vite handling for API routes
+        if (req.path.startsWith('/api')) {
+          return next();
         }
 
-        // Always reload the index.html file from disk in case it changes
-        const template = await fs.promises.readFile(clientTemplate, "utf-8");
-        
-        if (typeof template !== "string") {
-          throw new ServerError(
-            "Invalid template content",
-            "INVALID_TEMPLATE",
-            500
-          );
-        }
+        const url = req.originalUrl;
 
-        const page = await vite.transformIndexHtml(url, template);
-        
-        if (typeof page !== "string") {
-          throw new ServerError(
-            "Invalid transformed HTML",
-            "INVALID_HTML",
-            500
-          );
+        // Send static files through Vite
+        if (process.env.NODE_ENV === 'production') {
+          // Serve static files in production
+          const clientDist = path.resolve(__dirname, '..', 'client', 'dist');
+          if (fs.existsSync(clientDist)) {
+            app.use(express.static(clientDist));
+          }
+          
+          // Always serve index.html for client-side routing
+          const indexPath = path.resolve(clientDist, 'index.html');
+          if (fs.existsSync(indexPath)) {
+            res.sendFile(indexPath);
+          } else {
+            res.status(404).send('Not found');
+          }
+        } else {
+          // Development mode - let Vite handle it
+          await vite.middlewares(req, res, next);
         }
-
-        res.status(200)
-           .set({ "Content-Type": "text/html" })
-           .end(page);
-      } catch (error) {
-        if (error instanceof Error) {
-          vite.ssrFixStacktrace(error);
-        }
+      } catch (e) {
+        const error = e as Error;
+        vite.ssrFixStacktrace(error);
         next(error);
       }
     });
-  } catch (error) {
+  } catch (e) {
+    const error = e as Error;
     throw new ServerError(
-      "Failed to setup Vite server",
-      "VITE_SETUP_FAILED",
+      'Failed to initialize Vite server',
+      'VITE_INIT_ERROR',
       500,
       error
     );

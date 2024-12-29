@@ -37,12 +37,15 @@ interface AuthenticatedRequest extends Express.Request {
 }
 
 // Helper functions for date handling
-function parseDate(dateString: string | Date | null): Date | null {
+function parseDate(dateString: string | Date | null): string | null {
   if (!dateString) return null;
   
   try {
-    const date = typeof dateString === 'string' ? parseISO(dateString) : dateString;
-    return isValid(date) ? date : null;
+    if (dateString instanceof Date) {
+      return dateString.toISOString();
+    }
+    const date = new Date(dateString);
+    return date.toISOString();
   } catch (error) {
     console.error('Date parsing error:', error);
     return null;
@@ -53,8 +56,10 @@ function formatDate(date: Date | string | null): string | null {
   if (!date) return null;
   
   try {
-    const parsedDate = typeof date === 'string' ? parseISO(date) : date;
-    return isValid(parsedDate) ? format(parsedDate, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx") : null;
+    if (typeof date === 'string') {
+      return date; // Already in ISO format
+    }
+    return date.toISOString();
   } catch (error) {
     console.error('Date formatting error:', error);
     return null;
@@ -331,7 +336,7 @@ export function registerRoutes(app: Express): Server {
       const sortedTrips = uniqueTrips.sort((a, b) => {
         const dateA = parseDate(a.createdAt);
         const dateB = parseDate(b.createdAt);
-        return dateB && dateA ? dateB.getTime() - dateA.getTime() : 0;
+        return dateB && dateA ? dateB.localeCompare(dateA) : 0;
       });
 
       // Format dates in the response

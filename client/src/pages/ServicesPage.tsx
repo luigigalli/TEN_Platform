@@ -120,9 +120,9 @@ export default function ServicesPage() {
         onOpenChange={(open) => !open && setSelectedService(null)}
       >
         <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Book Service</DialogTitle>
-            <DialogDescription>
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="text-xl font-semibold">Book Service</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               Fill in the booking details and complete the payment to secure your service.
             </DialogDescription>
           </DialogHeader>

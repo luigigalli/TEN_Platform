@@ -7,18 +7,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUser } from "../hooks/use-user";
-import type { User } from "@db/schema";
+import type { SelectUser } from "@db/schema";
 
 interface NavigationProps {
-  user: User;
+  user: SelectUser;
 }
 
 export default function Navigation({ user }: NavigationProps) {
   const { logout } = useUser();
 
   // Get user initials for avatar fallback
-  const getUserInitials = (username: string) => {
-    return username
+  const getUserInitials = (name: string | undefined | null) => {
+    if (!name) return '';
+    return name
       .split(' ')
       .map(part => part[0]?.toUpperCase() ?? '')
       .slice(0, 2)
@@ -57,6 +58,16 @@ export default function Navigation({ user }: NavigationProps) {
                 </Link>
               </NavigationMenuItem>
               <NavigationMenuItem>
+                <Link href="/bookings">
+                  <Button 
+                    variant="ghost"
+                    aria-label="View Bookings"
+                  >
+                    My Bookings
+                  </Button>
+                </Link>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
                 <Link href="/trips">
                   <Button 
                     variant="ghost"
@@ -78,7 +89,7 @@ export default function Navigation({ user }: NavigationProps) {
                         alt={`${user.username}'s profile picture`}
                       />
                       <AvatarFallback>
-                        {getUserInitials(user.username)}
+                        {getUserInitials(user.fullName || user.username)}
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-sm font-medium">{user.username}</span>
