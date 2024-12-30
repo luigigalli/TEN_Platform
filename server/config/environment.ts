@@ -127,5 +127,7 @@ export const getExternalUrl = (port: number) => {
 
   // For local development or when Replit URL is not available
   const host = env.HOST === '0.0.0.0' ? 'localhost' : env.HOST;
-  return `http://${host}:${port}`;
+  // When on Replit, use port 3000 for external URLs
+  const externalPort = isReplit ? 3000 : port;
+  return `http://${host}:${externalPort}`;
 };

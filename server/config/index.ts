@@ -14,6 +14,7 @@ const configSchema = z.object({
   env: z.nativeEnum(Environment),
   server: z.object({
     port: z.number().int().min(1024).max(65535),
+    externalPort: z.number().int().min(1024).max(65535),
     host: z.string().min(1),
     corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)])),
   }),
@@ -38,6 +39,7 @@ function buildConfig(): Config {
       env: env.NODE_ENV,
       server: {
         port: 5000, // Always use port 5000 internally for Replit
+        externalPort: isReplit ? 3000 : 5000, // Map to port 3000 externally on Replit
         host: '0.0.0.0',
         corsOrigins: isDevelopment 
           ? ['*']
@@ -55,8 +57,7 @@ function buildConfig(): Config {
               'http://localhost:5000',
               'http://localhost:3000',
               'http://127.0.0.1:5000',
-              'http://127.0.0.1:3000',
-              `http://${env.HOST}:${env.PORT}`
+              'http://127.0.0.1:3000'
             ]
       },
       database: {
@@ -71,7 +72,8 @@ function buildConfig(): Config {
     if (isDevelopment) {
       console.log('[config] Environment:', validated.env);
       console.log('[config] Server:', {
-        port: validated.server.port,
+        internalPort: validated.server.port,
+        externalPort: validated.server.externalPort,
         host: validated.server.host,
         platform: isReplit ? 'Replit' : isWindsurf ? 'Windsurf' : 'Local',
         ...(replitDevDomain && { replitDevUrl: replitDevDomain })

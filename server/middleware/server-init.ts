@@ -63,6 +63,10 @@ async function bindServer(
         return;
       }
 
+      // Log the port mapping
+      const externalPort = isReplit ? 3000 : boundPort;
+      console.log(`[server] Internal port ${boundPort} mapped to external port ${externalPort}`);
+
       resolve({ boundPort });
     };
 
@@ -73,8 +77,13 @@ async function bindServer(
     });
 
     try {
-      // Always bind to 0.0.0.0 on Replit
-      server.listen(port, '0.0.0.0');
+      // Always bind to 0.0.0.0 on Replit with port 5000
+      if (isReplit) {
+        console.log('[server] Binding to internal port 5000 for Replit');
+        server.listen(5000, '0.0.0.0');
+      } else {
+        server.listen(port, host);
+      }
     } catch (error) {
       onError(error as NodeJS.ErrnoException);
     }
@@ -150,13 +159,14 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
 
     // Health check endpoint with environment info
     app.get("/api/health", (_req, res) => {
-      const serverUrl = getExternalUrl(config.server.port);
+      const serverUrl = getExternalUrl(isReplit ? 3000 : config.server.port);
       res.json({
         status: "ok",
         environment: config.env,
         platform: isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local',
         internalHost: config.server.host,
         internalPort: config.server.port,
+        externalPort: isReplit ? 3000 : config.server.port,
         externalUrl: serverUrl,
         replitUrl: env.REPL_URL || null,
         timestamp: new Date().toISOString()
@@ -179,7 +189,7 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
     );
 
     const timeStr = new Date().toLocaleTimeString();
-    const serverUrl = getExternalUrl(boundPort);
+    const serverUrl = getExternalUrl(isReplit ? 3000 : boundPort);
 
     // Log server startup information
     console.log(`
@@ -187,6 +197,7 @@ Server Configuration:
 - Environment: ${config.env}
 - Platform: ${isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local'}
 - Internal Port: ${boundPort}
+- External Port: ${isReplit ? 3000 : boundPort}
 - Host: ${config.server.host}
 - External URL: ${serverUrl}
 - Replit URL: ${env.REPL_URL || 'N/A'}

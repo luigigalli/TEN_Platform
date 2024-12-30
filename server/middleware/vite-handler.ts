@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import viteConfig from "../../vite.config";
 import { ServerError } from "../errors";
 import { config } from "../config";
+import { isReplit } from "../config/environment";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,16 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
       server: {
         middlewareMode: true,
         hmr: { server },
+        // Important: When on Replit, allow connections from all hosts and use port 5000
+        host: isReplit ? '0.0.0.0' : 'localhost',
+        port: isReplit ? 5000 : config.server.port,
+        strictPort: true,
+        // Map internal port 5000 to external port 3000 on Replit
+        hmr: {
+          server,
+          port: isReplit ? 3000 : config.server.port,
+          clientPort: isReplit ? 3000 : config.server.port
+        }
       },
       appType: "custom",
     });
