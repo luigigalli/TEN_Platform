@@ -51,9 +51,7 @@ process.on('SIGINT', async () => {
     // Initialize server with environment-aware configuration
     const instance = await initializeServer({
       maxRetries: 3,
-      retryDelay: 1000,
-      // Use port 3000 for Replit
-      fallbackPorts: isReplit ? [3000] : [5000, 8080, 8000]
+      retryDelay: 1000
     });
 
     serverInstance = instance;
@@ -82,14 +80,15 @@ process.on('SIGINT', async () => {
     }
 
     // Get the external URL based on environment
-    const serverUrl = getExternalUrl(config.server.port);
+    const serverUrl = getExternalUrl(isReplit ? 3001 : 3000);
     const timeStr = new Date().toLocaleTimeString();
 
     console.log(`
 ${timeStr} [express] Server Configuration:
 - Environment: ${config.env}
 - Platform: ${isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local'}
-- Internal Port: ${config.server.port}
+- Internal Port: 3000
+- External Port: ${isReplit ? 3001 : 3000}
 - External URL: ${serverUrl}
 - API Path: ${serverUrl}/api
 - Routes:
@@ -100,7 +99,6 @@ ${timeStr} [express] Server Configuration:
 
   } catch (error) {
     console.error('Failed to start server:', error);
-    await cleanup();
     process.exit(1);
   }
 })();

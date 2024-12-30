@@ -38,8 +38,8 @@ function buildConfig(): Config {
     const config = {
       env: env.NODE_ENV,
       server: {
-        port: 3000, // Always use port 3000 internally for server in Replit
-        externalPort: 3001, // Maps to 3001 externally in Replit
+        port: 3000, // Always use port 3000 internally
+        externalPort: isReplit ? 3001 : 3000, // Maps to 3001 externally in Replit
         host: env.HOST || '0.0.0.0',
         corsOrigins: isDevelopment 
           ? ['*']
@@ -54,11 +54,9 @@ function buildConfig(): Config {
               ] : []),
               // Allow Windsurf domains
               ...(isWindsurf ? [new RegExp('^https?://.*\\.windsurf\\.dev$')] : []),
-              // Always allow development URLs
-              'http://localhost:5000',
+              // Development URLs - always use consistent ports
               'http://localhost:3000',
               'http://localhost:3001',
-              'http://127.0.0.1:5000',
               'http://127.0.0.1:3000',
               'http://127.0.0.1:3001'
             ]
