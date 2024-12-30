@@ -10,7 +10,7 @@ import { config } from "../config";
 import { isReplit } from "../config/environment";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(__dirname);
 
 // Create a type-safe logger
 const viteLogger = createLogger();
@@ -28,24 +28,28 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
   }
 
   try {
+    // Resolve the client directory
+    const clientDir = path.resolve(__dirname, '..', 'client');
+    const indexPath = path.resolve(clientDir, 'index.html');
+
+    // Create Vite server
     const vite = await createViteServer({
       ...viteConfig,
       configFile: false,
       customLogger: viteLogger,
+      root: clientDir,
       server: {
         middlewareMode: true,
-        hmr: { server },
-        // Important: When on Replit, allow connections from all hosts
-        host: isReplit ? '0.0.0.0' : 'localhost',
-        port: 5173, // Always use port 5173 internally
-        strictPort: true,
-        // Configure HMR for Replit
         hmr: {
           server,
           port: 5173,
           clientPort: isReplit ? 443 : 5173,
           protocol: isReplit ? 'wss' : 'ws'
-        }
+        },
+        // Important: When on Replit, allow connections from all hosts
+        host: isReplit ? '0.0.0.0' : 'localhost',
+        port: 5173, // Always use port 5173 internally
+        strictPort: true,
       },
       appType: "custom",
     });
@@ -62,13 +66,39 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
         }
 
         const url = req.originalUrl;
-        const template = await fs.promises.readFile(
-          path.resolve(__dirname, '..', '..', 'client', 'index.html'),
-          'utf-8'
-        );
 
-        const transformedTemplate = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedTemplate);
+        // Read and transform index.html
+        let template: string;
+        try {
+          template = await fs.promises.readFile(indexPath, 'utf-8');
+        } catch (e) {
+          console.error('Failed to read index.html:', e);
+          throw new ServerError(
+            'Failed to read index.html',
+            'INDEX_READ_ERROR',
+            500,
+            { path: indexPath }
+          );
+        }
+
+        // Transform the template
+        let html: string;
+        try {
+          html = await vite.transformIndexHtml(url, template);
+        } catch (e) {
+          console.error('Failed to transform index.html:', e);
+          throw new ServerError(
+            'Failed to transform index.html',
+            'INDEX_TRANSFORM_ERROR',
+            500
+          );
+        }
+
+        // Send the response
+        res.status(200)
+          .set({ 'Content-Type': 'text/html' })
+          .end(html);
+
       } catch (e) {
         const error = e as Error;
         vite.ssrFixStacktrace(error);
@@ -77,6 +107,7 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
     });
   } catch (e) {
     const error = e as Error;
+    console.error('Failed to initialize Vite server:', error);
     throw new ServerError(
       'Failed to initialize Vite server',
       'VITE_INIT_ERROR',
@@ -100,10 +131,10 @@ export function handleStaticFiles(app: Express): void {
 
   const distPath = path.resolve(__dirname, '..', '..', 'dist', 'public');
 
-  // Serve static files from the dist directory
+  // Serve static files
   app.use(express.static(distPath));
 
-  // Serve index.html for all other routes (SPA)
+  // Serve index.html for all other routes
   app.get('*', (_req: Request, res: Response) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
