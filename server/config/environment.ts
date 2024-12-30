@@ -129,8 +129,8 @@ export function getReplitDevDomain(): string | null {
  */
 export function getExternalUrl(port: number): string {
   if (isReplit && env.REPL_URL) {
-    // For Replit, use the REPL_URL for port 80 (client) and append port for API (3001)
-    return port === env.EXTERNAL_CLIENT_PORT ? env.REPL_URL : `${env.REPL_URL}:${port}`;
+    // In Replit, never append the port to the URL
+    return env.REPL_URL;
   }
 
   const host = env.HOST === '0.0.0.0' ? 'localhost' : env.HOST;
