@@ -19,9 +19,8 @@ const getApiUrl = () => {
 
   // For Replit, use the Replit URL with port 3001 (server port)
   if (isReplit && process.env.REPL_URL) {
-    const url = new URL(process.env.REPL_URL);
-    url.port = '3001';
-    return url.toString();
+    const baseUrl = process.env.REPL_URL.replace(/\/$/, ''); // Remove trailing slash if present
+    return `${baseUrl}:3001`;
   }
 
   if (isWindsurf) {
