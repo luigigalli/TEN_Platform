@@ -1,4 +1,3 @@
-
 modules = ["nodejs-20", "web", "postgresql-16"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
@@ -6,10 +5,12 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 [nix]
 channel = "stable-24_05"
 
+# Client (Vite) - Maps internal port 5173 to external port 443 (HTTPS)
 [[ports]]
 localPort = 5173
-externalPort = 80
+externalPort = 443
 
+# Server/API - Maps internal port 3001 to external port 3001
 [[ports]]
 localPort = 3001
 externalPort = 3001
