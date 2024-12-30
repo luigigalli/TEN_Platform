@@ -24,6 +24,10 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     hmr: false, // Disable HMR as it causes issues in Replit
+    watch: {
+      usePolling: false // Disable file watching
+    },
+    websocket: false, // Explicitly disable WebSocket server
     proxy: {
       '/api': {
         target: getApiUrl(),
