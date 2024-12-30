@@ -29,13 +29,7 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
       base: '/',
       server: {
         middlewareMode: true,
-        hmr: {
-          server,
-          port: 5173,
-          host: isReplit ? process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co' : '0.0.0.0',
-          protocol: isReplit ? 'wss' : 'ws',
-          clientPort: isReplit ? 443 : 5173
-        }
+        hmr: false
       },
       appType: 'custom',
       optimizeDeps: {

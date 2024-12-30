@@ -13,16 +13,12 @@ export default defineConfig({
     }
   },
   server: {
-    host: true,
+    host: '0.0.0.0',
     port: 5173,
-    hmr: {
-      port: isReplit ? 443 : undefined,
-      clientPort: isReplit ? 443 : undefined,
-      protocol: isReplit ? 'wss' : 'ws'
-    },
+    hmr: false,
     proxy: {
       '/api': {
-        target: isReplit ? 'https://0.0.0.0:3001' : 'http://0.0.0.0:3000',
+        target: isReplit ? 'http://0.0.0.0:3001' : 'http://localhost:3000',
         changeOrigin: true,
         secure: false
       }
