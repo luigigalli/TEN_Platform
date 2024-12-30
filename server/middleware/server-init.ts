@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { config } from "../config";
 import { ServerError } from "../errors";
 import cors from "cors";
+import { getExternalUrl } from "../config/environment";
 
 interface ServerBindingOptions {
   maxRetries?: number;
@@ -177,7 +178,7 @@ Environment Configuration:
     );
 
     const timeStr = new Date().toLocaleTimeString();
-    const externalUrl = process.env.REPL_URL || `http://${config.server.host}:${boundPort}`;
+    const externalUrl = getExternalUrl(boundPort);
 
     console.log(`${timeStr} [express] Server running in ${config.env} mode`);
     console.log(`${timeStr} [express] API available at ${externalUrl}/api`);
