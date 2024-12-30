@@ -28,7 +28,20 @@ export const envSchema = z.object({
   REPL_ID: z.string().optional(),
   REPL_OWNER: z.string().optional(),
   REPL_SLUG: z.string().optional(),
-  REPL_URL: z.string().optional(), // Added for Replit URL support
+  REPL_URL: z.string()
+    .optional()
+    .transform(val => {
+      if (!val) return null;
+      try {
+        // Ensure URL has protocol
+        if (!val.startsWith('http')) {
+          val = `https://${val}`;
+        }
+        return new URL(val).origin;
+      } catch {
+        return null;
+      }
+    }),
   WINDSURF_ENV: z.string().optional(),
 
   // Server configuration
@@ -104,15 +117,15 @@ export const isReplit = Boolean(env.REPL_ID && env.REPL_OWNER);
 export const isWindsurf = Boolean(env.WINDSURF_ENV);
 export const isDevelopment = env.NODE_ENV === 'development';
 
-// Get the Replit Dev URL domain for CORS
+// Get the Replit Dev URL for CORS and logging
 export const getReplitDevDomain = () => {
-  if (env.REPL_URL) {
-    try {
-      const url = new URL(env.REPL_URL);
-      return url.origin;
-    } catch {
-      return null;
-    }
+  return env.REPL_URL;
+};
+
+// Get the external URL for server logging
+export const getExternalUrl = (port: number) => {
+  if (isReplit && env.REPL_URL) {
+    return env.REPL_URL;
   }
-  return null;
+  return `http://${env.HOST}:${port}`;
 };
