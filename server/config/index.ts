@@ -19,7 +19,7 @@ const configSchema = z.object({
     corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)])),
   }),
   database: z.object({
-    url: z.string().min(1, "Database URL is required")
+    url: z.string().optional().default("postgresql://postgres:postgres@localhost:5432/postgres")
   })
 }).strict();
 
@@ -38,8 +38,8 @@ function buildConfig(): Config {
     const config = {
       env: env.NODE_ENV,
       server: {
-        port: 3000, // Always use port 3000 internally
-        externalPort: isReplit ? 3001 : 3000, // Maps to 3001 externally in Replit
+        port: isReplit ? 3001 : 3000, // Use 3001 in Replit, 3000 locally
+        externalPort: isReplit ? 3001 : 3000,
         host: env.HOST || '0.0.0.0',
         corsOrigins: isDevelopment 
           ? ['*']
@@ -76,8 +76,7 @@ function buildConfig(): Config {
         port: validated.server.port,
         externalPort: validated.server.externalPort,
         host: validated.server.host,
-        platform: isReplit ? 'Replit' : isWindsurf ? 'Windsurf' : 'Local',
-        ...(replitDevDomain && { replitDevUrl: replitDevDomain })
+        platform: isReplit ? 'Replit' : isWindsurf ? 'Windsurf' : 'Local'
       });
     }
 
