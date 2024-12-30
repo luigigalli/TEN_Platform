@@ -22,6 +22,12 @@ export const isReplit = Boolean(process.env.REPL_ID);
 export const isWindsurf = Boolean(process.env.WINDSURF_ENV);
 export const isDevelopment = process.env.NODE_ENV === 'development';
 
+// Get the default port based on environment
+const getDefaultPort = () => {
+  if (isReplit) return 3001;
+  return 3000;
+};
+
 // Environment variables schema with validation
 export const envSchema = z.object({
   // Node environment
@@ -50,11 +56,13 @@ export const envSchema = z.object({
   WINDSURF_ENV: z.string().optional(),
 
   // Server configuration
-  PORT: z.string()
-    .transform(val => parseInt(val, 10))
-    .pipe(z.number().int().min(1024).max(65535))
-    .optional()
-    .default(isReplit ? '3001' : '3000'),
+  PORT: z.coerce
+    .number()
+    .int()
+    .min(1024)
+    .max(65535)
+    .default(getDefaultPort()),
+  
   HOST: z.string().min(1).optional().default('0.0.0.0'),
 
   // Database configuration
