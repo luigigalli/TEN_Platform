@@ -9,7 +9,6 @@ import { getExternalUrl, env, isReplit } from "../config/environment";
 interface ServerBindingOptions {
   maxRetries?: number;
   retryDelay?: number;
-  fallbackPorts?: number[];
 }
 
 /**
@@ -30,9 +29,7 @@ async function bindServer(
         if (retryCount < maxRetries) {
           console.log(`Port ${port} in use, retrying in ${retryDelay}ms...`);
           setTimeout(() => {
-            // For Replit, we should always use port 3000
-            const nextPort = isReplit ? 3000 : port + 1;
-            bindServer(server, host, nextPort, options, retryCount + 1)
+            bindServer(server, host, port, options, retryCount + 1)
               .then(resolve)
               .catch(reject);
           }, retryDelay);
@@ -64,7 +61,7 @@ async function bindServer(
       }
 
       // Log the port mapping
-      const externalPort = isReplit ? 3000 : boundPort;
+      const externalPort = isReplit ? 3001 : boundPort;
       console.log(`[server] Internal port ${boundPort} mapped to external port ${externalPort}`);
 
       resolve({ boundPort });
@@ -77,13 +74,7 @@ async function bindServer(
     });
 
     try {
-      // Always bind to 0.0.0.0 on Replit with port 3000
-      if (isReplit) {
-        console.log('[server] Binding to internal port 3000 for Replit');
-        server.listen(3000, '0.0.0.0');
-      } else {
-        server.listen(port, host);
-      }
+      server.listen(port, host);
     } catch (error) {
       onError(error as NodeJS.ErrnoException);
     }
@@ -100,58 +91,28 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
   try {
     app = express();
 
-    // Security headers
-    app.use((_req, res, next) => {
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('X-Frame-Options', 'DENY');
-      res.setHeader('X-XSS-Protection', '1; mode=block');
-      next();
-    });
-
-    // Configure CORS with environment-aware origins
-    const corsOptions = {
-      origin: config.server.corsOrigins,
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization']
-    };
-
-    // Log CORS configuration in development
-    if (env.NODE_ENV === 'development') {
-      console.log('[server] CORS configuration:', {
-        origins: corsOptions.origin,
-        credentials: corsOptions.credentials
-      });
-    }
-
-    app.use(cors(corsOptions));
+    // Basic security middleware
     app.use(express.json());
-    app.use(express.urlencoded({ extended: false }));
+    app.use(cors({
+      origin: config.server.corsOrigins,
+      credentials: true
+    }));
 
-    // Request logging
-    app.use((req, res, next) => {
+    // Request logging middleware
+    app.use((req: Request, res: Response, next: NextFunction) => {
       const start = Date.now();
-      const path = req.path;
-      let capturedJsonResponse: Record<string, any> | undefined = undefined;
+      const { method, url } = req;
 
-      const originalResJson = res.json;
-      res.json = function (bodyJson, ...args) {
-        capturedJsonResponse = bodyJson;
-        return originalResJson.apply(res, [bodyJson, ...args]);
-      };
-
-      res.on("finish", () => {
+      res.on('finish', () => {
         const duration = Date.now() - start;
-        if (path.startsWith("/api")) {
-          let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-          if (capturedJsonResponse) {
-            logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-          }
-          if (logLine.length > 80) {
-            logLine = logLine.slice(0, 79) + "…";
-          }
-          console.log(`[${new Date().toLocaleTimeString()}] ${logLine}`);
+        const status = res.statusCode;
+        let logLine = `${method} ${url} ${status} ${duration}ms`;
+
+        // Truncate long lines
+        if (logLine.length > 80) {
+          logLine = logLine.slice(0, 79) + "…";
         }
+        console.log(`[${new Date().toLocaleTimeString()}] ${logLine}`);
       });
 
       next();
@@ -159,15 +120,14 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
 
     // Health check endpoint with environment info
     app.get("/api/health", (_req, res) => {
-      const serverUrl = getExternalUrl(isReplit ? 3000 : config.server.port);
       res.json({
         status: "ok",
         environment: config.env,
         platform: isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local',
         internalHost: config.server.host,
-        internalPort: config.server.port,
-        externalPort: isReplit ? 3000 : config.server.port,
-        externalUrl: serverUrl,
+        internalPort: 3000,
+        externalPort: isReplit ? 3001 : 3000,
+        externalUrl: getExternalUrl(3000),
         replitUrl: env.REPL_URL || null,
         timestamp: new Date().toISOString()
       });
@@ -175,13 +135,10 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
 
     server = createServer(app);
 
-    // For Replit, always try port 3000 first
-    const initialPort = isReplit ? 3000 : config.server.port;
-
     const { boundPort } = await bindServer(
       server,
       config.server.host,
-      initialPort,
+      3000, // Always use port 3000 internally
       {
         maxRetries: 3,
         retryDelay: 1000
@@ -189,7 +146,7 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
     );
 
     const timeStr = new Date().toLocaleTimeString();
-    const serverUrl = getExternalUrl(isReplit ? 3000 : boundPort);
+    const serverUrl = getExternalUrl(boundPort);
 
     // Log server startup information
     console.log(`
@@ -197,7 +154,7 @@ Server Configuration:
 - Environment: ${config.env}
 - Platform: ${isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local'}
 - Internal Port: ${boundPort}
-- External Port: ${isReplit ? 3000 : boundPort}
+- External Port: ${isReplit ? 3001 : boundPort}
 - Host: ${config.server.host}
 - External URL: ${serverUrl}
 - Replit URL: ${env.REPL_URL || 'N/A'}
