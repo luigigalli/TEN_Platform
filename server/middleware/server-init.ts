@@ -1,16 +1,93 @@
-import express, { type Express } from "express";
-import cors from "cors";
-import { config } from "../config";
-import { ServerError } from "../errors";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { type Server } from "http";
 import { createServer } from "http";
+import { config } from "../config";
+import { ServerError } from "../errors";
+import cors from "cors";
+
+interface ServerBindingOptions {
+  maxRetries?: number;
+  retryDelay?: number;
+  fallbackPorts?: number[];
+}
+
+/**
+ * Bind the server to a port with retry logic
+ */
+async function bindServer(
+  server: Server,
+  host: string,
+  port: number,
+  options: ServerBindingOptions = {},
+  retryCount = 0
+): Promise<{ boundPort: number }> {
+  const { maxRetries = 3, retryDelay = 1000, fallbackPorts = [5001, 5002, 5003] } = options;
+
+  return new Promise((resolve, reject) => {
+    const onError = (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        if (retryCount < maxRetries) {
+          console.log(`Port ${port} in use, retrying in ${retryDelay}ms...`);
+          setTimeout(() => {
+            const nextPort = fallbackPorts[retryCount] || port + 1;
+            bindServer(server, host, nextPort, options, retryCount + 1)
+              .then(resolve)
+              .catch(reject);
+          }, retryDelay);
+        } else {
+          reject(new ServerError(
+            `Failed to bind to any available ports after ${maxRetries} attempts`,
+            'PORT_BINDING_ERROR',
+            500,
+            { attemptedPorts: [port, ...fallbackPorts.slice(0, retryCount)] }
+          ));
+        }
+      } else {
+        reject(new ServerError(
+          'Failed to start server',
+          'SERVER_START_ERROR',
+          500,
+          { originalError: error.message }
+        ));
+      }
+    };
+
+    const onListening = () => {
+      const addr = server.address();
+      const boundPort = typeof addr === 'string' ? parseInt(addr.split(':')[1], 10) : addr?.port;
+
+      if (!boundPort) {
+        reject(new ServerError('Failed to get bound port', 'PORT_BINDING_ERROR', 500));
+        return;
+      }
+
+      console.log(`[${new Date().toLocaleTimeString()}] Server listening on ${host}:${boundPort}`);
+      resolve({ boundPort });
+    };
+
+    server.once('error', onError);
+    server.once('listening', () => {
+      server.removeListener('error', onError);
+      onListening();
+    });
+
+    try {
+      server.listen(port, host);
+    } catch (error) {
+      onError(error as NodeJS.ErrnoException);
+    }
+  });
+}
 
 /**
  * Initialize Express application with proper error handling and middleware
  */
-export async function initializeServer(): Promise<{ app: Express; server: Server }> {
+export async function initializeServer(options: ServerBindingOptions = {}): Promise<{ app: Express; server: Server }> {
+  let app: Express | null = null;
+  let server: Server | null = null;
+
   try {
-    // Log environment detection immediately
+    // Enhanced environment detection logging
     const envInfo = `
 Environment Detection:
 - NODE_ENV: ${process.env.NODE_ENV || 'not set'}
@@ -22,9 +99,9 @@ Environment Detection:
     `;
     console.log(envInfo);
 
-    const app = express();
+    app = express();
 
-    // Basic security headers
+    // Enhanced security headers
     app.use((_req, res, next) => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('X-Frame-Options', 'DENY');
@@ -42,7 +119,7 @@ Environment Detection:
     app.use(express.json());
     app.use(express.urlencoded({ extended: false }));
 
-    // Request logging middleware
+    // Enhanced request logging middleware
     app.use((req, res, next) => {
       const start = Date.now();
       const path = req.path;
@@ -71,7 +148,7 @@ Environment Detection:
       next();
     });
 
-    // Enhanced health check endpoint
+    // Enhanced health check endpoint with environment info
     app.get("/api/health", (_req, res) => {
       res.json({
         status: "ok",
@@ -84,48 +161,23 @@ Environment Detection:
     });
 
     // Create HTTP server instance
-    const server = createServer(app);
+    server = createServer(app);
 
-    // Set up server with proper error handling
-    return new Promise((resolve, reject) => {
-      const onError = (error: NodeJS.ErrnoException) => {
-        console.error('Server startup error:', error);
+    // Start server with enhanced error handling
+    const { boundPort } = await bindServer(server, config.server.host, config.server.port, options);
 
-        if (error.code === 'EADDRINUSE') {
-          reject(new ServerError(
-            `Port ${config.server.port} is already in use`,
-            'PORT_IN_USE',
-            500,
-            { port: config.server.port }
-          ));
-        } else {
-          reject(new ServerError(
-            'Failed to start server',
-            'SERVER_START_ERROR',
-            500,
-            { originalError: error }
-          ));
-        }
-      };
+    if (boundPort !== config.server.port) {
+      console.log(`[${new Date().toLocaleTimeString()}] Note: Server bound to alternate port ${boundPort} (originally requested ${config.server.port})`);
+    }
 
-      const onListening = () => {
-        const addr = server.address();
-        const port = typeof addr === 'string' ? addr : addr?.port;
-        console.log(`[${new Date().toLocaleTimeString()}] Server listening on ${config.server.host}:${port}`);
-        resolve({ app, server });
-      };
-
-      server.once('error', onError);
-      server.once('listening', onListening);
-
-      try {
-        server.listen(config.server.port, config.server.host);
-      } catch (error) {
-        onError(error as NodeJS.ErrnoException);
-      }
-    });
+    return { app, server };
 
   } catch (error) {
+    // Cleanup on initialization failure
+    if (server) {
+      server.close();
+    }
+
     if (error instanceof ServerError) {
       throw error;
     }
