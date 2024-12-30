@@ -10,24 +10,15 @@ deploymentTarget = "cloudrun"
 build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
-[[ports]]
-localPort = 3000
-externalPort = 3001
-
-[[ports]]
-localPort = 3001
-externalPort = 80
-
-[[ports]]
-localPort = 3002
-externalPort = 3002
-
-[[ports]]
-localPort = 5000
-
+# Client (Vite) - Maps internal port 5173 to external port 3000 (default)
 [[ports]]
 localPort = 5173
 externalPort = 3000
+
+# Server/API - Maps internal port 3000 to external port 3001
+[[ports]]
+localPort = 3000
+externalPort = 3001
 
 [workflows]
 runButton = "Project"
@@ -49,9 +40,5 @@ author = "agent"
 agentRequireRestartOnSave = false
 
 [[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
+task = "npm.run"
+args = "dev"
