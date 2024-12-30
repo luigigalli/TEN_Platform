@@ -1,3 +1,4 @@
+
 modules = ["nodejs-20", "web", "postgresql-16"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
@@ -10,35 +11,13 @@ deploymentTarget = "cloudrun"
 build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
-# Client (Vite) - Maps internal port 5173 to external port 80 (default)
 [[ports]]
 localPort = 5173
 externalPort = 80
 
-# Server/API - Maps internal port 3000 to external port 3001
 [[ports]]
-localPort = 3000
+localPort = 3001
 externalPort = 3001
 
 [workflows]
 runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "npm.run"
-args = "dev"
