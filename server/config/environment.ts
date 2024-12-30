@@ -33,12 +33,12 @@ export const envSchema = z.object({
     .transform(val => {
       if (!val) return null;
       try {
-        // Ensure URL has protocol
-        if (!val.startsWith('http')) {
-          val = `https://${val}`;
-        }
-        return new URL(val).origin;
+        // Always use HTTPS for Replit URLs
+        const url = !val.startsWith('http') ? `https://${val}` : val;
+        // Ensure we get just the origin
+        return new URL(url).origin;
       } catch {
+        console.warn('[config] Invalid REPL_URL format:', val);
         return null;
       }
     }),
@@ -70,19 +70,14 @@ export type EnvVars = z.infer<typeof envSchema>;
  */
 export function loadEnvVars(): EnvVars {
   try {
-    // First try loading from .env file in development
-    if (process.env.NODE_ENV !== 'production') {
-      dotenv();
-    }
-
     const env = envSchema.parse(process.env);
 
     // Enhanced logging in development
     if (env.NODE_ENV === 'development') {
       console.log('[config] Environment variables loaded successfully');
       console.log('[config] Platform:', env.REPL_ID ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local');
-      if (env.REPL_ID && env.REPL_URL) {
-        console.log('[config] Replit Dev URL:', env.REPL_URL);
+      if (env.REPL_ID) {
+        console.log('[config] Replit URL:', env.REPL_URL || 'Not configured');
       }
     }
 
@@ -119,13 +114,18 @@ export const isDevelopment = env.NODE_ENV === 'development';
 
 // Get the Replit Dev URL for CORS and logging
 export const getReplitDevDomain = () => {
+  if (!isReplit || !env.REPL_URL) return null;
   return env.REPL_URL;
 };
 
 // Get the external URL for server logging
 export const getExternalUrl = (port: number) => {
+  // For Replit, always use the Replit URL when available
   if (isReplit && env.REPL_URL) {
     return env.REPL_URL;
   }
-  return `http://${env.HOST}:${port}`;
+
+  // For local development or when Replit URL is not available
+  const host = env.HOST === '0.0.0.0' ? 'localhost' : env.HOST;
+  return `http://${host}:${port}`;
 };
