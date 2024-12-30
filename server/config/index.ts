@@ -6,7 +6,8 @@ import {
   isReplit,
   isWindsurf,
   isDevelopment,
-  getReplitDevDomain
+  getReplitDevDomain,
+  getExternalUrl
 } from './environment';
 
 // Enhanced configuration schema with environment-specific validation
@@ -32,7 +33,6 @@ function buildConfig(): Config {
   try {
     // Get Replit Dev URL for CORS if available
     const replitDevDomain = getReplitDevDomain();
-    console.log('[config] Replit Dev URL:', replitDevDomain || 'Not available');
 
     // Build base configuration with environment-specific settings
     const config = {
@@ -45,13 +45,7 @@ function buildConfig(): Config {
           ? ['*']
           : [
               // Allow Replit domains in production
-              ...(isReplit ? [
-                // Allow the specific Replit Dev URL if available
-                ...(replitDevDomain ? [
-                  replitDevDomain,
-                  replitDevDomain.replace(/\/$/, '') // Also allow without trailing slash
-                ] : []),
-              ] : []),
+              ...(isReplit && replitDevDomain ? [replitDevDomain] : []),
               // Allow Windsurf domains
               ...(isWindsurf ? [new RegExp('^https?://.*\\.windsurf\\.dev$')] : []),
               // Development URLs - always use consistent ports

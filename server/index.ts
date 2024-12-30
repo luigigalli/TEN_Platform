@@ -95,9 +95,8 @@ process.on('SIGINT', async () => {
     console.log('- Internal Port:', serverPort);
     console.log('- External Port:', isReplit ? env.EXTERNAL_PORT : serverPort);
     console.log('- Host:', env.HOST);
-    console.log('- External URL:', getExternalUrl(serverPort));
+    console.log('- URL:', env.REPL_URL || getExternalUrl(serverPort));
     if (isReplit) {
-      console.log('- Replit URL:', env.REPL_URL);
       console.log('- Client Port:', env.CLIENT_PORT);
       console.log('- External Client Port:', env.EXTERNAL_CLIENT_PORT);
     }
