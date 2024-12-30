@@ -35,15 +35,16 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
       server: {
         middlewareMode: true,
         hmr: { server },
-        // Important: When on Replit, allow connections from all hosts and use port 5000
+        // Important: When on Replit, allow connections from all hosts
         host: isReplit ? '0.0.0.0' : 'localhost',
-        port: isReplit ? 5000 : config.server.port,
+        port: 5173, // Always use port 5173 internally
         strictPort: true,
-        // Map internal port 5000 to external port 3000 on Replit
+        // Configure HMR for Replit
         hmr: {
           server,
-          port: isReplit ? 3000 : config.server.port,
-          clientPort: isReplit ? 3000 : config.server.port
+          port: 5173,
+          clientPort: isReplit ? 443 : 5173,
+          protocol: isReplit ? 'wss' : 'ws'
         }
       },
       appType: "custom",
@@ -99,29 +100,11 @@ export function handleStaticFiles(app: Express): void {
 
   const distPath = path.resolve(__dirname, '..', '..', 'dist', 'public');
 
-  if (!fs.existsSync(distPath)) {
-    throw new ServerError(
-      `Could not find the build directory: ${distPath}. Run 'npm run build' first.`,
-      'BUILD_DIR_NOT_FOUND',
-      500
-    );
-  }
-
-  // Serve static files
+  // Serve static files from the dist directory
   app.use(express.static(distPath));
 
-  // Fall through to index.html for client-side routing
-  app.use("*", (_req: Request, res: Response) => {
-    const indexPath = path.resolve(distPath, "index.html");
-
-    if (!fs.existsSync(indexPath)) {
-      throw new ServerError(
-        'Index file not found in production build',
-        'INDEX_NOT_FOUND',
-        500
-      );
-    }
-
-    res.sendFile(indexPath);
+  // Serve index.html for all other routes (SPA)
+  app.get('*', (_req: Request, res: Response) => {
+    res.sendFile(path.join(distPath, 'index.html'));
   });
 }
