@@ -1,4 +1,3 @@
-
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { type Server } from "http";
 import { createServer as createViteServer } from "vite";
@@ -53,12 +52,35 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
       }
     });
   } catch (e) {
-    const error = e as Error;
+    console.error('Failed to initialize Vite server:', e);
     throw new ServerError(
       'Failed to initialize Vite server',
       'VITE_INIT_ERROR',
       500,
-      { originalError: error.message }
+      { originalError: (e as Error).message }
     );
   }
+}
+
+/**
+ * Handle static file serving in production
+ */
+export function handleStaticFiles(app: Express): void {
+  if (config.env !== 'production') {
+    throw new ServerError(
+      'Static file handling should only be used in production mode',
+      'INVALID_ENV',
+      500
+    );
+  }
+
+  const distPath = path.resolve(__dirname, '..', '..', 'dist', 'public');
+
+  // Serve static files
+  app.use(express.static(distPath));
+
+  // Serve index.html for all other routes
+  app.get('*', (_req: Request, res: Response) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
 }
