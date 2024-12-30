@@ -46,15 +46,16 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
           server,
           port: 5173,
           clientPort: isReplit ? 443 : 5173,
-          protocol: isReplit ? 'wss' : 'ws'
+          host: isReplit ? process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co' : '0.0.0.0',
+          protocol: isReplit ? 'wss' : 'ws',
+          timeout: 180000
         },
-        // Important: When on Replit, allow connections from all hosts
-        host: isReplit ? '0.0.0.0' : 'localhost',
-        port: 5173, // Always use port 5173 internally
+        host: '0.0.0.0',
+        port: 5173,
         strictPort: true,
         watch: {
           usePolling: true,
-          interval: 1000
+          interval: 2000
         }
       },
       optimizeDeps: {

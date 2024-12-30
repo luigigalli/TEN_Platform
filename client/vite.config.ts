@@ -11,16 +11,21 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
-    hmr: isReplit ? {
-      clientPort: 443,
-      protocol: 'wss',
-      host: `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`,
-      timeout: 120000
-    } : true,
+    hmr: {
+      clientPort: isReplit ? 443 : 5173,
+      host: isReplit ? process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co' : '0.0.0.0',
+      protocol: isReplit ? 'wss' : 'ws',
+      timeout: 180000
+    },
+    watch: {
+      usePolling: true,
+      interval: 2000
+    },
     proxy: {
       '/api': {
         target: isReplit ? 'http://0.0.0.0:3001' : 'http://0.0.0.0:3000',
-        changeOrigin: true
+        changeOrigin: true,
+        secure: false
       }
     }
   }
