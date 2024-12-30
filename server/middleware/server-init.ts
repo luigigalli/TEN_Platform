@@ -10,6 +10,18 @@ import { createServer } from "http";
  */
 export async function initializeServer(): Promise<{ app: Express; server: Server }> {
   try {
+    // Log environment detection immediately
+    const envInfo = `
+Environment Detection:
+- NODE_ENV: ${process.env.NODE_ENV || 'not set'}
+- REPL_ID: ${process.env.REPL_ID ? 'present' : 'absent'}
+- WINDSURF_ENV: ${process.env.WINDSURF_ENV ? 'present' : 'absent'}
+- Host: ${config.server.host}
+- Port: ${config.server.port}
+- Platform: ${config.env} (${process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local'})
+    `;
+    console.log(envInfo);
+
     const app = express();
 
     // Basic security headers
@@ -52,33 +64,23 @@ export async function initializeServer(): Promise<{ app: Express; server: Server
           if (logLine.length > 80) {
             logLine = logLine.slice(0, 79) + "…";
           }
-          const timeStr = new Date().toLocaleTimeString();
-          console.log(`${timeStr} [express] ${logLine}`);
+          console.log(`[${new Date().toLocaleTimeString()}] ${logLine}`);
         }
       });
 
       next();
     });
 
-    // Enhanced health check endpoint with environment info
+    // Enhanced health check endpoint
     app.get("/api/health", (_req, res) => {
-      try {
-        const healthData = {
-          status: "ok",
-          environment: config.env,
-          port: config.server.port,
-          host: config.server.host,
-          timestamp: new Date().toISOString(),
-          uptime: process.uptime()
-        };
-        res.json(healthData);
-      } catch (error) {
-        console.error('Health check error:', error);
-        res.status(500).json({ 
-          status: "error",
-          message: "Failed to retrieve health information"
-        });
-      }
+      res.json({
+        status: "ok",
+        environment: config.env,
+        platform: process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local',
+        host: config.server.host,
+        port: config.server.port,
+        timestamp: new Date().toISOString()
+      });
     });
 
     // Create HTTP server instance
@@ -87,8 +89,7 @@ export async function initializeServer(): Promise<{ app: Express; server: Server
     // Set up server with proper error handling
     return new Promise((resolve, reject) => {
       const onError = (error: NodeJS.ErrnoException) => {
-        server.removeListener('error', onError);
-        server.removeListener('listening', onListening);
+        console.error('Server startup error:', error);
 
         if (error.code === 'EADDRINUSE') {
           reject(new ServerError(
@@ -108,13 +109,14 @@ export async function initializeServer(): Promise<{ app: Express; server: Server
       };
 
       const onListening = () => {
-        server.removeListener('error', onError);
-        server.removeListener('listening', onListening);
+        const addr = server.address();
+        const port = typeof addr === 'string' ? addr : addr?.port;
+        console.log(`[${new Date().toLocaleTimeString()}] Server listening on ${config.server.host}:${port}`);
         resolve({ app, server });
       };
 
-      server.on('error', onError);
-      server.on('listening', onListening);
+      server.once('error', onError);
+      server.once('listening', onListening);
 
       try {
         server.listen(config.server.port, config.server.host);
