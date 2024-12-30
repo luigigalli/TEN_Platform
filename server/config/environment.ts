@@ -28,6 +28,17 @@ const getDefaultPort = () => {
   return 3000;
 };
 
+// Get the default host based on environment
+const getDefaultHost = () => {
+  if (isReplit) return '0.0.0.0';
+  return 'localhost';
+};
+
+// Get the default client port based on environment
+const getDefaultClientPort = () => {
+  return 5173;
+};
+
 // Environment variables schema with validation
 export const envSchema = z.object({
   // Node environment
@@ -49,94 +60,80 @@ export const envSchema = z.object({
         // Ensure we get just the origin
         return new URL(url).origin;
       } catch {
-        console.warn('[config] Invalid REPL_URL format:', val);
         return null;
       }
     }),
-  WINDSURF_ENV: z.string().optional(),
 
   // Server configuration
-  PORT: z.coerce
-    .number()
-    .int()
-    .min(1024)
-    .max(65535)
+  PORT: z.coerce.number()
+    .optional()
     .default(getDefaultPort()),
   
-  HOST: z.string().min(1).optional().default('0.0.0.0'),
-
-  // Database configuration
-  DATABASE_URL: z.string()
-    .min(1, "Database URL is required")
-    .catch("postgresql://postgres:postgres@localhost:5432/postgres"),
-
-  // API keys and secrets
-  SESSION_SECRET: z.string()
+  HOST: z.string()
     .optional()
-    .default(() => crypto.randomUUID()),
+    .default(getDefaultHost()),
+
+  // Client configuration
+  CLIENT_PORT: z.coerce.number()
+    .optional()
+    .default(getDefaultClientPort()),
+
+  // External ports (for Replit)
+  EXTERNAL_PORT: z.coerce.number()
+    .optional()
+    .default(getDefaultPort()),
+  
+  EXTERNAL_CLIENT_PORT: z.coerce.number()
+    .optional()
+    .default(80),
+
+  // Windsurf environment
+  WINDSURF_ENV: z.string().optional(),
 });
 
 export type EnvVars = z.infer<typeof envSchema>;
 
 /**
- * Load and validate environment variables with enhanced error handling
+ * Load and validate environment variables
  */
-export function loadEnvVars(): EnvVars {
+function loadEnvVars(): EnvVars {
   try {
     const env = envSchema.parse(process.env);
-
-    // Enhanced logging in development
-    if (env.NODE_ENV === 'development') {
-      console.log('[config] Environment variables loaded successfully');
-      console.log('[config] Platform:', env.REPL_ID ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local');
-      if (env.REPL_ID) {
-        console.log('[config] Replit URL:', env.REPL_URL || 'Not configured');
-      }
-    }
-
     return env;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const missingVars = error.errors
-        .filter(err => err.code === 'invalid_type' && err.received === 'undefined')
-        .map(err => err.path.join('.'));
-
       throw new EnvironmentConfigError(
-        'Missing or invalid environment variables',
-        {
-          validationErrors: error.errors,
-          missingVariables: missingVars,
-          tip: "Make sure all required environment variables are set. In development, you can use a .env file."
-        }
+        'Invalid environment configuration',
+        'ENV_VALIDATION_ERROR',
+        400,
+        { details: error.errors }
       );
     }
-
-    throw new EnvironmentConfigError('Failed to load environment variables', {
-      error: error instanceof Error ? error.message : String(error),
-      tip: "Check your .env file and environment configuration."
-    });
+    throw error;
   }
 }
 
 // Export validated environment variables
 export const env = loadEnvVars();
 
-// Get the Replit Dev URL for CORS and logging
+/**
+ * Get the Replit Dev URL for CORS and logging
+ */
 export function getReplitDevDomain(): string | null {
+  if (!isReplit || !env.REPL_URL) return null;
   return env.REPL_URL;
 }
 
-// Get the external URL for server logging
+/**
+ * Get the external URL for server logging
+ */
 export function getExternalUrl(port: number): string {
   if (isReplit && env.REPL_URL) {
-    // For Replit, only append port if it's not the default (3001)
-    const baseUrl = env.REPL_URL;
-    return port === 3001 ? baseUrl : `${baseUrl}:${port}`;
+    // For Replit, use the REPL_URL for port 80 (client) and append port for API (3001)
+    return port === env.EXTERNAL_CLIENT_PORT ? env.REPL_URL : `${env.REPL_URL}:${port}`;
   }
-  
-  if (isWindsurf) {
-    return `http://localhost:${port}`;
-  }
-  
-  return `http://localhost:${port}`;
+
+  const host = env.HOST === '0.0.0.0' ? 'localhost' : env.HOST;
+  const protocol = host === 'localhost' ? 'http' : 'https';
+  return `${protocol}://${host}:${port}`;
 }

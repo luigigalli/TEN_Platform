@@ -49,15 +49,24 @@ process.on('SIGINT', async () => {
     await cleanup();
 
     // Initialize server with environment-aware configuration
-    const instance = await initializeServer({
+    console.log('[config] Environment variables loaded successfully');
+    console.log('[config] Platform:', isReplit ? 'Replit' : 'Local');
+    
+    if (isReplit) {
+      console.log('[config] Replit URL:', env.REPL_URL);
+      console.log('[config] Replit Dev URL:', getExternalUrl(env.EXTERNAL_PORT));
+    }
+
+    // Initialize the server with the correct port
+    const serverPort = isReplit ? env.PORT : env.PORT;
+    serverInstance = await initializeServer({
+      port: serverPort,
       maxRetries: 3,
       retryDelay: 1000
     });
+    const { app } = serverInstance;
 
-    serverInstance = instance;
-    const { app, server: httpServer } = instance;
-
-    // Register API routes first to ensure they take precedence
+    // Register routes
     registerRoutes(app);
 
     // Add error handling middleware
@@ -74,28 +83,24 @@ process.on('SIGINT', async () => {
 
     // Set up environment-specific middleware
     if (config.env === 'development') {
-      await handleViteMiddleware(app, httpServer);
+      await handleViteMiddleware(app, serverInstance.server);
     } else {
       handleStaticFiles(app);
     }
 
-    // Get the external URL based on environment
-    const serverUrl = getExternalUrl(isReplit ? 3001 : 3000);
-    const timeStr = new Date().toLocaleTimeString();
-
-    console.log(`
-${timeStr} [express] Server Configuration:
-- Environment: ${config.env}
-- Platform: ${isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local'}
-- Internal Port: 3000
-- External Port: ${isReplit ? 3001 : 3000}
-- External URL: ${serverUrl}
-- API Path: ${serverUrl}/api
-- Routes:
-  * API: ${serverUrl}/api
-  * Health: ${serverUrl}/api/health
-  * Client: ${serverUrl}
-`);
+    // Log server configuration
+    console.log('\nServer Configuration:');
+    console.log('- Environment:', env.NODE_ENV);
+    console.log('- Platform:', isReplit ? 'Replit' : 'Local');
+    console.log('- Internal Port:', serverPort);
+    console.log('- External Port:', isReplit ? env.EXTERNAL_PORT : serverPort);
+    console.log('- Host:', env.HOST);
+    console.log('- External URL:', getExternalUrl(serverPort));
+    if (isReplit) {
+      console.log('- Replit URL:', env.REPL_URL);
+      console.log('- Client Port:', env.CLIENT_PORT);
+      console.log('- External Client Port:', env.EXTERNAL_CLIENT_PORT);
+    }
 
   } catch (error) {
     console.error('Failed to start server:', error);

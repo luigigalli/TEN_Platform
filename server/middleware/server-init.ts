@@ -9,6 +9,7 @@ import { getExternalUrl, env, isReplit } from "../config/environment";
 interface ServerBindingOptions {
   maxRetries?: number;
   retryDelay?: number;
+  port?: number;
 }
 
 /**
@@ -52,32 +53,15 @@ async function bindServer(
     };
 
     const onListening = () => {
-      const addr = server.address();
-      const boundPort = typeof addr === 'string' ? parseInt(addr.split(':')[1], 10) : addr?.port;
-
-      if (!boundPort) {
-        reject(new ServerError('Failed to get bound port', 'PORT_BINDING_ERROR', 500));
-        return;
-      }
-
-      // Log the port mapping
-      const externalPort = isReplit ? 3001 : boundPort;
-      console.log(`[server] Internal port ${boundPort} mapped to external port ${externalPort}`);
-
+      const address = server.address();
+      const boundPort = typeof address === 'object' && address ? address.port : port;
       resolve({ boundPort });
     };
 
     server.once('error', onError);
-    server.once('listening', () => {
-      server.removeListener('error', onError);
-      onListening();
-    });
+    server.once('listening', onListening);
 
-    try {
-      server.listen(port, host);
-    } catch (error) {
-      onError(error as NodeJS.ErrnoException);
-    }
+    server.listen(port, host);
   });
 }
 
@@ -85,66 +69,72 @@ async function bindServer(
  * Initialize Express application with proper error handling and middleware
  */
 export async function initializeServer(options: ServerBindingOptions = {}): Promise<{ app: Express; server: Server }> {
-  let app: Express | null = null;
-  let server: Server | null = null;
+  const app = express();
+  const server = createServer(app);
 
-  try {
-    app = express();
+  // Basic middleware
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-    // Basic security middleware
-    app.use(express.json());
-    app.use(cors({
-      origin: config.server.corsOrigins,
-      credentials: true
-    }));
+  // Configure CORS
+  const corsOptions = {
+    origin: isReplit
+      ? [env.REPL_URL, getExternalUrl(env.PORT)]
+      : true,
+    credentials: true,
+  };
+  app.use(cors(corsOptions));
 
-    // Request logging middleware
-    app.use((req: Request, res: Response, next: NextFunction) => {
-      const start = Date.now();
-      const { method, url } = req;
+  // Request logging middleware
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const start = Date.now();
+    const { method, url } = req;
 
-      res.on('finish', () => {
-        const duration = Date.now() - start;
-        const status = res.statusCode;
-        let logLine = `${method} ${url} ${status} ${duration}ms`;
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      const status = res.statusCode;
+      let logLine = `${method} ${url} ${status} ${duration}ms`;
 
-        // Truncate long lines
-        if (logLine.length > 80) {
-          logLine = logLine.slice(0, 79) + "…";
-        }
-        console.log(`[${new Date().toLocaleTimeString()}] ${logLine}`);
-      });
-
-      next();
-    });
-
-    // Health check endpoint with environment info
-    app.get("/api/health", (_req, res) => {
-      res.json({
-        status: "ok",
-        environment: config.env,
-        platform: isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local',
-        internalHost: config.server.host,
-        internalPort: 3000,
-        externalPort: isReplit ? 3001 : 3000,
-        externalUrl: getExternalUrl(3000),
-        replitUrl: env.REPL_URL || null,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    server = createServer(app);
-
-    const { boundPort } = await bindServer(
-      server,
-      config.server.host,
-      3000, // Always use port 3000 internally
-      {
-        maxRetries: 3,
-        retryDelay: 1000
+      // Truncate long lines
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
       }
-    );
+      console.log(`[${new Date().toLocaleTimeString()}] ${logLine}`);
+    });
 
+    next();
+  });
+
+  // Health check endpoint with environment info
+  app.get("/api/health", (_req, res) => {
+    res.json({
+      status: "ok",
+      environment: config.env,
+      platform: isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local',
+      internalHost: config.server.host,
+      internalPort: 3000,
+      externalPort: isReplit ? 3001 : 3000,
+      externalUrl: getExternalUrl(3000),
+      replitUrl: env.REPL_URL || null,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Error handling middleware
+  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    console.error('Unhandled error:', err);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: err.message
+    });
+  });
+
+  // Bind server to port
+  const port = options.port || env.PORT;
+  const host = env.HOST;
+  
+  try {
+    const { boundPort } = await bindServer(server, host, port, options);
     const timeStr = new Date().toLocaleTimeString();
     const serverUrl = getExternalUrl(boundPort);
 
@@ -161,21 +151,8 @@ Server Configuration:
 `);
 
     return { app, server };
-
   } catch (error) {
-    if (server) {
-      server.close();
-    }
-
-    if (error instanceof ServerError) {
-      throw error;
-    }
-
-    throw new ServerError(
-      'Failed to initialize server',
-      'SERVER_INIT_ERROR',
-      500,
-      { originalError: error instanceof Error ? error.message : String(error) }
-    );
+    console.error('Failed to initialize server:', error);
+    throw error;
   }
 }

@@ -6,6 +6,13 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// Environment detection
+const isReplit = Boolean(process.env.REPL_ID)
+
+// Port configuration
+const serverPort = isReplit ? 3001 : 3000
+const clientPort = 5173
+
 export default defineConfig({
   plugins: [
     react({
@@ -19,10 +26,15 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 5173,
+    port: clientPort,
+    strictPort: true, // Ensure Vite uses exactly the port we specify
+    hmr: {
+      // Disable WebSocket server in Replit
+      port: isReplit ? undefined : 24678,
+    },
     proxy: {
       '/api': {
-        target: 'http://0.0.0.0:3001',
+        target: `http://0.0.0.0:${serverPort}`,
         changeOrigin: true
       }
     }
