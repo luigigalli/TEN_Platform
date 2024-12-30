@@ -23,12 +23,8 @@ const getApiUrl = () => {
     return `${baseUrl}:3001`;
   }
 
-  if (isWindsurf) {
-    return 'http://localhost:5000';
-  }
-
-  // Default development URL
-  return 'http://localhost:5000';
+  // Default to port 3000 for local development
+  return 'http://localhost:3000';
 };
 
 export default defineConfig({
@@ -50,6 +46,11 @@ export default defineConfig({
     // Important: When on Replit, allow connections from all hosts
     host: isReplit ? '0.0.0.0' : 'localhost',
     // Use port 5173 always (will be mapped to 3000 externally in Replit)
-    port: 5173
+    port: 5173,
+    // Ensure HMR works in Replit
+    hmr: {
+      clientPort: isReplit ? 443 : 5173,
+      protocol: isReplit ? 'wss' : 'ws'
+    }
   }
 });
