@@ -4,7 +4,7 @@ import { createServer } from "http";
 import { config } from "../config";
 import { ServerError } from "../errors";
 import cors from "cors";
-import { getExternalUrl } from "../config/environment";
+import { getExternalUrl, env, isReplit } from "../config/environment";
 
 interface ServerBindingOptions {
   maxRetries?: number;
@@ -22,7 +22,7 @@ async function bindServer(
   options: ServerBindingOptions = {},
   retryCount = 0
 ): Promise<{ boundPort: number }> {
-  const { maxRetries = 3, retryDelay = 1000, fallbackPorts = [] } = options;
+  const { maxRetries = 3, retryDelay = 1000 } = options;
 
   return new Promise((resolve, reject) => {
     const onError = (error: NodeJS.ErrnoException) => {
@@ -30,8 +30,8 @@ async function bindServer(
         if (retryCount < maxRetries) {
           console.log(`Port ${port} in use, retrying in ${retryDelay}ms...`);
           setTimeout(() => {
-            // For Replit, we should stick to port 5000
-            const nextPort = process.env.REPL_ID ? 5000 : (fallbackPorts[retryCount] || port + 1);
+            // For Replit, we should always use port 5000
+            const nextPort = isReplit ? 5000 : port + 1;
             bindServer(server, host, nextPort, options, retryCount + 1)
               .then(resolve)
               .catch(reject);
@@ -99,13 +99,22 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
     });
 
     // Configure CORS with environment-aware origins
-    app.use(cors({
+    const corsOptions = {
       origin: config.server.corsOrigins,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization']
-    }));
+    };
 
+    // Log CORS configuration in development
+    if (env.NODE_ENV === 'development') {
+      console.log('[server] CORS configuration:', {
+        origins: corsOptions.origin,
+        credentials: corsOptions.credentials
+      });
+    }
+
+    app.use(cors(corsOptions));
     app.use(express.json());
     app.use(express.urlencoded({ extended: false }));
 
@@ -144,11 +153,11 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
       res.json({
         status: "ok",
         environment: config.env,
-        platform: process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local',
+        platform: isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local',
         internalHost: config.server.host,
         internalPort: config.server.port,
         externalUrl: serverUrl,
-        replitUrl: process.env.REPL_URL || null,
+        replitUrl: env.REPL_URL || null,
         timestamp: new Date().toISOString()
       });
     });
@@ -156,7 +165,7 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
     server = createServer(app);
 
     // For Replit, always try port 5000 first
-    const initialPort = process.env.REPL_ID ? 5000 : config.server.port;
+    const initialPort = isReplit ? 5000 : config.server.port;
 
     const { boundPort } = await bindServer(
       server,
@@ -164,8 +173,7 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
       initialPort,
       {
         maxRetries: 3,
-        retryDelay: 1000,
-        fallbackPorts: process.env.REPL_ID ? [] : [3000, 8080, 8000]
+        retryDelay: 1000
       }
     );
 
@@ -176,11 +184,11 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
     console.log(`
 Server Configuration:
 - Environment: ${config.env}
-- Platform: ${process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local'}
+- Platform: ${isReplit ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local'}
 - Internal Port: ${boundPort}
 - Host: ${config.server.host}
 - External URL: ${serverUrl}
-- Replit URL: ${process.env.REPL_URL || 'N/A'}
+- Replit URL: ${env.REPL_URL || 'N/A'}
 `);
 
     return { app, server };
