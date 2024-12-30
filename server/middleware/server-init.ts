@@ -30,8 +30,8 @@ async function bindServer(
         if (retryCount < maxRetries) {
           console.log(`Port ${port} in use, retrying in ${retryDelay}ms...`);
           setTimeout(() => {
-            // For Replit, we should always use port 5000
-            const nextPort = isReplit ? 5000 : port + 1;
+            // For Replit, we should always use port 3000
+            const nextPort = isReplit ? 3000 : port + 1;
             bindServer(server, host, nextPort, options, retryCount + 1)
               .then(resolve)
               .catch(reject);
@@ -77,10 +77,10 @@ async function bindServer(
     });
 
     try {
-      // Always bind to 0.0.0.0 on Replit with port 5000
+      // Always bind to 0.0.0.0 on Replit with port 3000
       if (isReplit) {
-        console.log('[server] Binding to internal port 5000 for Replit');
-        server.listen(5000, '0.0.0.0');
+        console.log('[server] Binding to internal port 3000 for Replit');
+        server.listen(3000, '0.0.0.0');
       } else {
         server.listen(port, host);
       }
@@ -175,8 +175,8 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
 
     server = createServer(app);
 
-    // For Replit, always try port 5000 first
-    const initialPort = isReplit ? 5000 : config.server.port;
+    // For Replit, always try port 3000 first
+    const initialPort = isReplit ? 3000 : config.server.port;
 
     const { boundPort } = await bindServer(
       server,

@@ -52,8 +52,8 @@ process.on('SIGINT', async () => {
     const instance = await initializeServer({
       maxRetries: 3,
       retryDelay: 1000,
-      // For Replit, we must use port 5000
-      fallbackPorts: isReplit ? [5000] : [3000, 8080, 8000]
+      // Use port 3000 for Replit
+      fallbackPorts: isReplit ? [3000] : [5000, 8080, 8000]
     });
 
     serverInstance = instance;
