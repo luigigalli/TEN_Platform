@@ -21,7 +21,7 @@ async function bindServer(
   options: ServerBindingOptions = {},
   retryCount = 0
 ): Promise<{ boundPort: number }> {
-  const { maxRetries = 3, retryDelay = 1000, fallbackPorts = [5001, 5002, 5003] } = options;
+  const { maxRetries = 3, retryDelay = 1000, fallbackPorts = [] } = options;
 
   return new Promise((resolve, reject) => {
     const onError = (error: NodeJS.ErrnoException) => {
@@ -29,17 +29,18 @@ async function bindServer(
         if (retryCount < maxRetries) {
           console.log(`Port ${port} in use, retrying in ${retryDelay}ms...`);
           setTimeout(() => {
-            const nextPort = fallbackPorts[retryCount] || port + 1;
+            // For Replit, we should stick to port 5000
+            const nextPort = process.env.REPL_ID ? 5000 : (fallbackPorts[retryCount] || port + 1);
             bindServer(server, host, nextPort, options, retryCount + 1)
               .then(resolve)
               .catch(reject);
           }, retryDelay);
         } else {
           reject(new ServerError(
-            `Failed to bind to any available ports after ${maxRetries} attempts`,
+            `Failed to bind to port ${port}`,
             'PORT_BINDING_ERROR',
             500,
-            { attemptedPorts: [port, ...fallbackPorts.slice(0, retryCount)] }
+            { attemptedPort: port }
           ));
         }
       } else {
@@ -61,7 +62,6 @@ async function bindServer(
         return;
       }
 
-      console.log(`[${new Date().toLocaleTimeString()}] Server listening on ${host}:${boundPort}`);
       resolve({ boundPort });
     };
 
@@ -88,20 +88,18 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
 
   try {
     // Enhanced environment detection logging
-    const envInfo = `
-Environment Detection:
-- NODE_ENV: ${process.env.NODE_ENV || 'not set'}
-- REPL_ID: ${process.env.REPL_ID ? 'present' : 'absent'}
-- WINDSURF_ENV: ${process.env.WINDSURF_ENV ? 'present' : 'absent'}
+    console.log(`
+Environment Configuration:
+- Internal Port: ${config.server.port}
 - Host: ${config.server.host}
-- Port: ${config.server.port}
-- Platform: ${config.env} (${process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local'})
-    `;
-    console.log(envInfo);
+- Platform: ${process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local'}
+- Replit URL: ${process.env.REPL_URL || 'N/A'}
+- Node ENV: ${process.env.NODE_ENV || 'development'}
+    `);
 
     app = express();
 
-    // Enhanced security headers
+    // Security headers
     app.use((_req, res, next) => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('X-Frame-Options', 'DENY');
@@ -112,14 +110,15 @@ Environment Detection:
     // Configure CORS with environment-aware origins
     app.use(cors({
       origin: config.server.corsOrigins,
-      credentials: true
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization']
     }));
 
-    // Basic middleware
     app.use(express.json());
     app.use(express.urlencoded({ extended: false }));
 
-    // Enhanced request logging middleware
+    // Request logging
     app.use((req, res, next) => {
       const start = Date.now();
       const path = req.path;
@@ -148,7 +147,7 @@ Environment Detection:
       next();
     });
 
-    // Enhanced health check endpoint with environment info
+    // Health check endpoint
     app.get("/api/health", (_req, res) => {
       res.json({
         status: "ok",
@@ -156,24 +155,37 @@ Environment Detection:
         platform: process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local',
         host: config.server.host,
         port: config.server.port,
+        replitUrl: process.env.REPL_URL || null,
         timestamp: new Date().toISOString()
       });
     });
 
-    // Create HTTP server instance
     server = createServer(app);
 
-    // Start server with enhanced error handling
-    const { boundPort } = await bindServer(server, config.server.host, config.server.port, options);
+    // For Replit, always try port 5000 first
+    const initialPort = process.env.REPL_ID ? 5000 : config.server.port;
 
-    if (boundPort !== config.server.port) {
-      console.log(`[${new Date().toLocaleTimeString()}] Note: Server bound to alternate port ${boundPort} (originally requested ${config.server.port})`);
-    }
+    const { boundPort } = await bindServer(
+      server,
+      config.server.host,
+      initialPort,
+      {
+        maxRetries: 3,
+        retryDelay: 1000,
+        fallbackPorts: process.env.REPL_ID ? [] : [3000, 8080, 8000]
+      }
+    );
+
+    const timeStr = new Date().toLocaleTimeString();
+    const externalUrl = process.env.REPL_URL || `http://${config.server.host}:${boundPort}`;
+
+    console.log(`${timeStr} [express] Server running in ${config.env} mode`);
+    console.log(`${timeStr} [express] API available at ${externalUrl}/api`);
+    console.log(`${timeStr} [express] Client available at ${externalUrl}`);
 
     return { app, server };
 
   } catch (error) {
-    // Cleanup on initialization failure
     if (server) {
       server.close();
     }
@@ -181,11 +193,12 @@ Environment Detection:
     if (error instanceof ServerError) {
       throw error;
     }
+
     throw new ServerError(
       'Failed to initialize server',
       'SERVER_INIT_ERROR',
       500,
-      { originalError: error }
+      { originalError: error instanceof Error ? error.message : String(error) }
     );
   }
 }

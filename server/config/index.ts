@@ -1,61 +1,63 @@
 import { z } from 'zod';
-import { config as dotenv } from 'dotenv';
 import { EnvironmentConfigError } from '../errors';
 import { 
-  ENVIRONMENT,
-  getCurrentEnvironment,
-  isDevelopment,
+  env,
+  Environment,
   isReplit,
   isWindsurf,
-  serverConfigSchema,
-  getAppropriateHost,
-  getAppropriatePort 
-} from './utils';
-
-// Load environment variables in development
-if (isDevelopment) {
-  dotenv();
-}
+  isDevelopment,
+  getReplitDevDomain
+} from './environment';
 
 // Enhanced configuration schema with environment-specific validation
 const configSchema = z.object({
-  env: z.nativeEnum(ENVIRONMENT),
-  server: serverConfigSchema.extend({
-    corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)]))
+  env: z.nativeEnum(Environment),
+  server: z.object({
+    port: z.number().int().min(1024).max(65535),
+    host: z.string().min(1),
+    corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)])),
   }),
   database: z.object({
-    url: z.string().min(1)
+    url: z.string().min(1, "Database URL is required")
   })
-});
+}).strict();
 
 export type Config = z.infer<typeof configSchema>;
 
 /**
- * Build configuration with enhanced environment awareness
+ * Build configuration with enhanced environment awareness and error handling
  */
 function buildConfig(): Config {
   try {
+    // Get Replit Dev URL for CORS if available
+    const replitDevDomain = getReplitDevDomain();
+
     // Build base configuration with environment-specific settings
     const config = {
-      env: getCurrentEnvironment(),
+      env: env.NODE_ENV,
       server: {
-        port: getAppropriatePort(),
-        host: getAppropriateHost(),
+        port: env.PORT,
+        host: env.HOST,
         corsOrigins: isDevelopment 
           ? ['*']
           : [
               // Allow Replit domains in production
-              ...(isReplit ? [new RegExp(`^https?://${process.env.REPL_SLUG}\\.${process.env.REPL_OWNER}\\.repl\\.co$`)] : []),
+              ...(isReplit ? [
+                // Allow the specific Replit Dev URL if available
+                ...(replitDevDomain ? [replitDevDomain] : []),
+                // Fallback to the standard Replit domain pattern
+                new RegExp(`^https?://${env.REPL_SLUG}\\.${env.REPL_OWNER}\\.repl\\.co$`)
+              ] : []),
               // Allow Windsurf domains
               ...(isWindsurf ? [new RegExp('^https?://.*\\.windsurf\\.dev$')] : []),
               // Always allow local development
               'http://localhost:5000',
               'http://127.0.0.1:5000',
-              `http://${getAppropriateHost()}:${getAppropriatePort()}`
+              `http://${env.HOST}:${env.PORT}`
             ]
       },
       database: {
-        url: process.env.DATABASE_URL || ''
+        url: env.DATABASE_URL
       }
     };
 
@@ -68,16 +70,23 @@ function buildConfig(): Config {
       console.log('[config] Server:', {
         port: validated.server.port,
         host: validated.server.host,
-        platform: isReplit ? 'Replit' : isWindsurf ? 'Windsurf' : 'Local'
+        platform: isReplit ? 'Replit' : isWindsurf ? 'Windsurf' : 'Local',
+        ...(replitDevDomain && { replitDevUrl: replitDevDomain })
       });
     }
 
     return validated;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new EnvironmentConfigError('Invalid configuration', { zodError: error.errors });
+      throw new EnvironmentConfigError('Invalid configuration', {
+        validationErrors: error.errors,
+        tip: "Check if all required environment variables are set correctly."
+      });
     }
-    throw new EnvironmentConfigError('Failed to build configuration', { error });
+    throw new EnvironmentConfigError('Failed to build configuration', {
+      error: error instanceof Error ? error.message : String(error),
+      tip: "This might be due to invalid environment variables or configuration schema mismatch."
+    });
   }
 }
 
@@ -85,5 +94,5 @@ function buildConfig(): Config {
 export const config = buildConfig();
 
 // Export environment utilities
-export { ENVIRONMENT };
-export type { Environment } from './utils';
+export { Environment, type Environment as EnvironmentType } from './environment';
+export { isReplit, isWindsurf, isDevelopment } from './environment';
