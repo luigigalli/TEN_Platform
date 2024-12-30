@@ -49,7 +49,7 @@ export const envSchema = z.object({
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().min(1024).max(65535))
     .optional()
-    .default('5000'),
+    .default('3000'),
   HOST: z.string().min(1).optional().default('0.0.0.0'),
 
   // Database configuration
@@ -78,6 +78,9 @@ export function loadEnvVars(): EnvVars {
       console.log('[config] Platform:', env.REPL_ID ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local');
       if (env.REPL_ID) {
         console.log('[config] Replit URL:', env.REPL_URL || 'Not configured');
+        if (env.REPL_URL) {
+          console.log('[config] Replit Dev URL:', getReplitDevDomain() || 'Not available');
+        }
       }
     }
 
@@ -99,7 +102,8 @@ export function loadEnvVars(): EnvVars {
     }
 
     throw new EnvironmentConfigError('Failed to load environment variables', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      tip: "Check your .env file and environment configuration."
     });
   }
 }
@@ -108,19 +112,21 @@ export function loadEnvVars(): EnvVars {
 export const env = loadEnvVars();
 
 // Environment detection utilities
-export const isReplit = Boolean(process.env.REPL_URL);
-export const isWindsurf = Boolean(process.env.WINDSURF_ENV);
-export const isDevelopment = process.env.NODE_ENV === 'development';
+export const isReplit = Boolean(env.REPL_ID);
+export const isWindsurf = Boolean(env.WINDSURF_ENV);
+export const isDevelopment = env.NODE_ENV === 'development';
 
 // Get the Replit Dev URL for CORS and logging
 export function getReplitDevDomain(): string | null {
-  return isReplit ? process.env.REPL_URL || null : null;
+  return env.REPL_URL;
 }
 
 // Get the external URL for server logging
 export function getExternalUrl(port: number): string {
-  if (isReplit && process.env.REPL_URL) {
-    return process.env.REPL_URL;
+  if (isReplit && env.REPL_URL) {
+    // For Replit, only append port if it's not the default (3000)
+    const baseUrl = env.REPL_URL;
+    return port === 3000 ? baseUrl : `${baseUrl}:${port}`;
   }
   
   if (isWindsurf) {
