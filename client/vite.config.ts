@@ -18,21 +18,23 @@ export default defineConfig({
     strictPort: true,
     hmr: {
       clientPort: isReplit ? 443 : 5173,
-      host: isReplit ? process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co' : '0.0.0.0',
+      host: isReplit ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : '0.0.0.0',
       protocol: isReplit ? 'wss' : 'ws',
-      timeout: 120000,
+      timeout: 180000,
+      path: '/@vite/client',
       overlay: false
     },
     watch: {
       usePolling: true,
-      interval: 1000
+      interval: 3000
     },
     proxy: {
       '/api': {
         target: isReplit ? 'http://0.0.0.0:3001' : 'http://0.0.0.0:3000',
         changeOrigin: true,
         secure: false,
-        ws: true
+        ws: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
       }
     }
   }

@@ -35,15 +35,15 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
           host: isReplit ? process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co' : '0.0.0.0',
           protocol: isReplit ? 'wss' : 'ws',
           clientPort: isReplit ? 443 : 5173,
-          timeout: 120000,
-          overlay: false
-        },
-        watch: {
-          usePolling: true,
-          interval: 1000
+          timeout: 180000,
+          overlay: false,
+          path: '/@vite/client'
         }
       },
-      appType: 'custom'
+      appType: 'custom',
+      optimizeDeps: {
+        force: true
+      }
     });
 
     app.use(vite.middlewares);
