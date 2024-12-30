@@ -31,13 +31,14 @@ function buildConfig(): Config {
   try {
     // Get Replit Dev URL for CORS if available
     const replitDevDomain = getReplitDevDomain();
+    console.log('[config] Replit Dev URL:', replitDevDomain || 'Not available');
 
     // Build base configuration with environment-specific settings
     const config = {
       env: env.NODE_ENV,
       server: {
-        port: env.PORT,
-        host: env.HOST,
+        port: 5000, // Always use port 5000 internally for Replit
+        host: '0.0.0.0',
         corsOrigins: isDevelopment 
           ? ['*']
           : [
@@ -52,7 +53,9 @@ function buildConfig(): Config {
               ...(isWindsurf ? [new RegExp('^https?://.*\\.windsurf\\.dev$')] : []),
               // Always allow local development
               'http://localhost:5000',
+              'http://localhost:3000',
               'http://127.0.0.1:5000',
+              'http://127.0.0.1:3000',
               `http://${env.HOST}:${env.PORT}`
             ]
       },

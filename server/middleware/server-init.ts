@@ -88,16 +88,6 @@ export async function initializeServer(options: ServerBindingOptions = {}): Prom
   let server: Server | null = null;
 
   try {
-    // Enhanced environment detection logging
-    console.log(`
-Environment Configuration:
-- Internal Port: ${config.server.port}
-- Host: ${config.server.host}
-- Platform: ${process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local'}
-- Replit URL: ${process.env.REPL_URL || 'N/A'}
-- Node ENV: ${process.env.NODE_ENV || 'development'}
-    `);
-
     app = express();
 
     // Security headers
@@ -148,14 +138,16 @@ Environment Configuration:
       next();
     });
 
-    // Health check endpoint
+    // Health check endpoint with environment info
     app.get("/api/health", (_req, res) => {
+      const serverUrl = getExternalUrl(config.server.port);
       res.json({
         status: "ok",
         environment: config.env,
         platform: process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local',
-        host: config.server.host,
-        port: config.server.port,
+        internalHost: config.server.host,
+        internalPort: config.server.port,
+        externalUrl: serverUrl,
         replitUrl: process.env.REPL_URL || null,
         timestamp: new Date().toISOString()
       });
@@ -178,11 +170,18 @@ Environment Configuration:
     );
 
     const timeStr = new Date().toLocaleTimeString();
-    const externalUrl = getExternalUrl(boundPort);
+    const serverUrl = getExternalUrl(boundPort);
 
-    console.log(`${timeStr} [express] Server running in ${config.env} mode`);
-    console.log(`${timeStr} [express] API available at ${externalUrl}/api`);
-    console.log(`${timeStr} [express] Client available at ${externalUrl}`);
+    // Log server startup information
+    console.log(`
+Server Configuration:
+- Environment: ${config.env}
+- Platform: ${process.env.REPL_ID ? 'Replit' : process.env.WINDSURF_ENV ? 'Windsurf' : 'Local'}
+- Internal Port: ${boundPort}
+- Host: ${config.server.host}
+- External URL: ${serverUrl}
+- Replit URL: ${process.env.REPL_URL || 'N/A'}
+`);
 
     return { app, server };
 
