@@ -4,13 +4,13 @@ import { createServer as createViteServer, createLogger } from "vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import viteConfig from "../../vite.config";
+import viteConfig from "../../client/vite.config";
 import { ServerError } from "../errors";
 import { config } from "../config";
 import { isReplit } from "../config/environment";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__dirname);
+const __dirname = path.dirname(__filename);
 
 // Create a type-safe logger
 const viteLogger = createLogger();
@@ -29,15 +29,17 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
 
   try {
     // Resolve the client directory
-    const clientDir = path.resolve(__dirname, '..', 'client');
-    const indexPath = path.resolve(clientDir, 'index.html');
+    const clientDir = path.resolve(__dirname, '..', '..', 'client');
+    console.log('Client directory:', clientDir);
+    console.log('Client src exists:', fs.existsSync(path.join(clientDir, 'src')));
+    console.log('main.tsx exists:', fs.existsSync(path.join(clientDir, 'src', 'main.tsx')));
 
     // Create Vite server
     const vite = await createViteServer({
       ...viteConfig,
-      configFile: false,
-      customLogger: viteLogger,
+      configFile: path.join(clientDir, 'vite.config.ts'),
       root: clientDir,
+      base: '/',
       server: {
         middlewareMode: true,
         hmr: {
@@ -50,8 +52,15 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
         host: isReplit ? '0.0.0.0' : 'localhost',
         port: 5173, // Always use port 5173 internally
         strictPort: true,
+        watch: {
+          usePolling: true,
+          interval: 1000
+        }
       },
-      appType: "custom",
+      optimizeDeps: {
+        force: true
+      },
+      appType: "custom"
     });
 
     // Use Vite's connect instance as middleware
@@ -66,11 +75,13 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
         }
 
         const url = req.originalUrl;
+        const indexPath = path.join(clientDir, 'index.html');
 
         // Read and transform index.html
         let template: string;
         try {
           template = await fs.promises.readFile(indexPath, 'utf-8');
+          console.log('Successfully read index.html');
         } catch (e) {
           console.error('Failed to read index.html:', e);
           throw new ServerError(
@@ -85,6 +96,7 @@ export async function handleViteMiddleware(app: Express, server: Server): Promis
         let html: string;
         try {
           html = await vite.transformIndexHtml(url, template);
+          console.log('Successfully transformed index.html');
         } catch (e) {
           console.error('Failed to transform index.html:', e);
           throw new ServerError(
