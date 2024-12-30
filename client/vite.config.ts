@@ -27,6 +27,19 @@ const getApiUrl = () => {
   return 'http://localhost:3000';
 };
 
+// Get the base URL for client
+const getBaseUrl = () => {
+  if (process.env.VITE_BASE_URL) {
+    return process.env.VITE_BASE_URL;
+  }
+
+  if (isReplit && process.env.REPL_URL) {
+    return process.env.REPL_URL.replace(/\/$/, '');
+  }
+
+  return 'http://localhost:5173';
+};
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -48,9 +61,22 @@ export default defineConfig({
     // Use port 5173 always (will be mapped to 3000 externally in Replit)
     port: 5173,
     // Ensure HMR works in Replit
-    hmr: {
-      clientPort: isReplit ? 443 : 5173,
-      protocol: isReplit ? 'wss' : 'ws'
+    hmr: isReplit ? {
+      clientPort: 443,
+      protocol: 'wss'
+    } : true,
+    // Always watch files
+    watch: {
+      usePolling: true,
+      interval: 1000
     }
+  },
+  // Base URL for assets
+  base: isReplit ? '/' : '/',
+  // Build configuration
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: true
   }
 });
