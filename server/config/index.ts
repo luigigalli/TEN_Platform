@@ -14,7 +14,7 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv();
 }
 
-// Server configuration schema
+// Server configuration schema with enhanced validation
 const serverConfigSchema = z.object({
   port: portConfigSchema.shape.port,
   host: portConfigSchema.shape.host,
