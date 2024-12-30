@@ -17,6 +17,11 @@ export const Environment = {
 
 export type Environment = typeof Environment[keyof typeof Environment];
 
+// Environment detection utilities
+export const isReplit = Boolean(process.env.REPL_ID);
+export const isWindsurf = Boolean(process.env.WINDSURF_ENV);
+export const isDevelopment = process.env.NODE_ENV === 'development';
+
 // Environment variables schema with validation
 export const envSchema = z.object({
   // Node environment
@@ -78,9 +83,6 @@ export function loadEnvVars(): EnvVars {
       console.log('[config] Platform:', env.REPL_ID ? 'Replit' : env.WINDSURF_ENV ? 'Windsurf' : 'Local');
       if (env.REPL_ID) {
         console.log('[config] Replit URL:', env.REPL_URL || 'Not configured');
-        if (env.REPL_URL) {
-          console.log('[config] Replit Dev URL:', getReplitDevDomain() || 'Not available');
-        }
       }
     }
 
@@ -110,11 +112,6 @@ export function loadEnvVars(): EnvVars {
 
 // Export validated environment variables
 export const env = loadEnvVars();
-
-// Environment detection utilities
-export const isReplit = Boolean(env.REPL_ID);
-export const isWindsurf = Boolean(env.WINDSURF_ENV);
-export const isDevelopment = env.NODE_ENV === 'development';
 
 // Get the Replit Dev URL for CORS and logging
 export function getReplitDevDomain(): string | null {
