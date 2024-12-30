@@ -1,13 +1,15 @@
 import { z } from 'zod';
 import { config as dotenv } from 'dotenv';
-import { EnvironmentConfigError, PortConfigError } from '../errors';
+import { EnvironmentConfigError } from '../errors';
 import { 
   ENVIRONMENT,
-  currentEnvironment,
+  getCurrentEnvironment,
   isDevelopment,
   isReplit,
   isWindsurf,
-  type Environment
+  serverConfigSchema,
+  getAppropriateHost,
+  getAppropriatePort 
 } from './utils';
 
 // Load environment variables in development
@@ -15,80 +17,58 @@ if (isDevelopment) {
   dotenv();
 }
 
-// Server configuration schema with enhanced validation
-const serverConfigSchema = z.object({
-  port: z.coerce
-    .number()
-    .int()
-    .min(1024, "Port must be >= 1024 (non-privileged ports)")
-    .max(65535, "Port must be <= 65535")
-    .default(5000),
-  host: z.string()
-    .min(1, "Host cannot be empty")
-    .default(isReplit ? '0.0.0.0' : 'localhost'),
-  corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)])),
-});
-
-// Main configuration schema
+// Enhanced configuration schema with environment-specific validation
 const configSchema = z.object({
   env: z.nativeEnum(ENVIRONMENT),
-  server: serverConfigSchema,
-  database: z.object({
-    url: z.string().min(1),
+  server: serverConfigSchema.extend({
+    corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)]))
   }),
+  database: z.object({
+    url: z.string().min(1)
+  })
 });
 
 export type Config = z.infer<typeof configSchema>;
 
 /**
- * Build configuration with environment awareness
+ * Build configuration with enhanced environment awareness
  */
 function buildConfig(): Config {
   try {
-    // Get port from environment or use default (5000)
-    const port = parseInt(process.env.PORT || '5000', 10);
-
-    // Determine host based on environment
-    const host = process.env.HOST || (isReplit ? '0.0.0.0' : 'localhost');
-
-    // Default configuration
+    // Build base configuration with environment-specific settings
     const config = {
-      env: currentEnvironment,
+      env: getCurrentEnvironment(),
       server: {
-        port,
-        host,
+        port: getAppropriatePort(),
+        host: getAppropriateHost(),
         corsOrigins: isDevelopment 
           ? ['*']
           : [
-              `http://${host}:${port}`,
+              // Allow Replit domains in production
+              ...(isReplit ? [new RegExp(`^https?://${process.env.REPL_SLUG}\\.${process.env.REPL_OWNER}\\.repl\\.co$`)] : []),
+              // Allow Windsurf domains
+              ...(isWindsurf ? [new RegExp('^https?://.*\\.windsurf\\.dev$')] : []),
+              // Always allow local development
               'http://localhost:5000',
               'http://127.0.0.1:5000',
-              /\.repl\.co$/,
-            ],
+              `http://${getAppropriateHost()}:${getAppropriatePort()}`
+            ]
       },
       database: {
-        url: process.env.DATABASE_URL || '',
-      },
+        url: process.env.DATABASE_URL || ''
+      }
     };
 
     // Validate configuration
     const validated = configSchema.parse(config);
 
-    // Additional port validation
-    if (validated.server.port < 1024) {
-      throw new PortConfigError(
-        'Port number must be >= 1024 (non-privileged ports)',
-        validated.server.port
-      );
-    }
-
-    // Log configuration in development for debugging
+    // Enhanced logging in development
     if (isDevelopment) {
       console.log('[config] Environment:', validated.env);
       console.log('[config] Server:', {
         port: validated.server.port,
         host: validated.server.host,
-        environment: isReplit ? 'Replit' : isWindsurf ? 'Windsurf' : 'Local'
+        platform: isReplit ? 'Replit' : isWindsurf ? 'Windsurf' : 'Local'
       });
     }
 
@@ -97,10 +77,7 @@ function buildConfig(): Config {
     if (error instanceof z.ZodError) {
       throw new EnvironmentConfigError('Invalid configuration', { zodError: error.errors });
     }
-    if (error instanceof PortConfigError) {
-      throw error;
-    }
-    throw new EnvironmentConfigError('Failed to build configuration');
+    throw new EnvironmentConfigError('Failed to build configuration', { error });
   }
 }
 
@@ -108,5 +85,5 @@ function buildConfig(): Config {
 export const config = buildConfig();
 
 // Export environment utilities
-export { ENVIRONMENT as ENV };
-export type { Environment };
+export { ENVIRONMENT };
+export type { Environment } from './utils';
