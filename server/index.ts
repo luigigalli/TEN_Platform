@@ -62,13 +62,11 @@ process.on('SIGINT', async () => {
       handleStaticFiles(app);
     }
 
-    // Start server with environment-aware configuration
-    httpServer.listen(config.server.port, config.server.host, () => {
-      const timeStr = new Date().toLocaleTimeString();
-      console.log(`${timeStr} [express] Server running in ${config.env} mode`);
-      console.log(`${timeStr} [express] API available at http://${config.server.host}:${config.server.port}/api`);
-      console.log(`${timeStr} [express] Client available at http://${config.server.host}:${config.server.port}`);
-    });
+    // Log server startup - server is already listening from initializeServer
+    const timeStr = new Date().toLocaleTimeString();
+    console.log(`${timeStr} [express] Server running in ${config.env} mode`);
+    console.log(`${timeStr} [express] API available at http://${config.server.host}:${config.server.port}/api`);
+    console.log(`${timeStr} [express] Client available at http://${config.server.host}:${config.server.port}`);
 
   } catch (error) {
     console.error('Failed to start server:', error);
