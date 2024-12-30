@@ -12,19 +12,25 @@ const isWindsurf = Boolean(process.env.WINDSURF_ENV);
 
 // Get appropriate API URL based on environment
 const getApiUrl = () => {
+  // Use explicitly configured API URL if available
   if (process.env.VITE_API_URL) {
     return process.env.VITE_API_URL;
   }
 
-  if (isReplit) {
-    return 'http://0.0.0.0:5000';
+  // For Replit, use the Replit URL with correct protocol
+  if (isReplit && process.env.REPL_URL) {
+    const url = process.env.REPL_URL;
+    // Ensure URL uses HTTPS
+    const baseUrl = !url.startsWith('http') ? `https://${url}` : url;
+    return new URL(baseUrl).origin;
   }
 
   if (isWindsurf) {
     return 'http://localhost:5000';
   }
 
-  return 'http://localhost:5000'; // Default development URL
+  // Default development URL
+  return 'http://localhost:5000';
 };
 
 export default defineConfig({
@@ -39,8 +45,13 @@ export default defineConfig({
       '/api': {
         target: getApiUrl(),
         changeOrigin: true,
-        secure: false
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, '/api')
       }
-    }
+    },
+    // Important: When on Replit, allow connections from all hosts
+    host: isReplit ? '0.0.0.0' : 'localhost',
+    // Use port 5173 by default (Vite's default)
+    port: 5173
   }
 });
