@@ -73,7 +73,8 @@ async function bindServer(
     });
 
     try {
-      server.listen(port, host);
+      // Always bind to 0.0.0.0 on Replit
+      server.listen(port, '0.0.0.0');
     } catch (error) {
       onError(error as NodeJS.ErrnoException);
     }
