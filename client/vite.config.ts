@@ -1,9 +1,17 @@
-
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
 const isReplit = Boolean(process.env.REPL_ID);
+
+// Get the API URL based on environment
+const getApiUrl = () => {
+  if (isReplit) {
+    // In Replit, we need to use the same domain but different port
+    return 'http://0.0.0.0:3001';
+  }
+  return 'http://localhost:3000';
+};
 
 export default defineConfig({
   plugins: [react()],
@@ -15,12 +23,13 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    hmr: false,
+    hmr: false, // Disable HMR as it causes issues in Replit
     proxy: {
       '/api': {
-        target: isReplit ? 'http://0.0.0.0:3001' : 'http://localhost:3000',
+        target: getApiUrl(),
         changeOrigin: true,
-        secure: false
+        secure: false,
+        rewrite: (path) => path
       }
     }
   }

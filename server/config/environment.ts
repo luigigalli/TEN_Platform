@@ -54,7 +54,7 @@ export const envSchema = z.object({
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().min(1024).max(65535))
     .optional()
-    .default('3000'),
+    .default(isReplit ? '3001' : '3000'),
   HOST: z.string().min(1).optional().default('0.0.0.0'),
 
   // Database configuration
@@ -121,9 +121,9 @@ export function getReplitDevDomain(): string | null {
 // Get the external URL for server logging
 export function getExternalUrl(port: number): string {
   if (isReplit && env.REPL_URL) {
-    // For Replit, only append port if it's not the default (3000)
+    // For Replit, only append port if it's not the default (3001)
     const baseUrl = env.REPL_URL;
-    return port === 3000 ? baseUrl : `${baseUrl}:${port}`;
+    return port === 3001 ? baseUrl : `${baseUrl}:${port}`;
   }
   
   if (isWindsurf) {
