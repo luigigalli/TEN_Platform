@@ -1,82 +1,27 @@
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Environment detection
-const isReplit = Boolean(process.env.REPL_URL);
+const isReplit = Boolean(process.env.REPL_ID);
 const isWindsurf = Boolean(process.env.WINDSURF_ENV);
-
-// Get appropriate API URL based on environment
-const getApiUrl = () => {
-  // Use explicitly configured API URL if available
-  if (process.env.VITE_API_URL) {
-    return process.env.VITE_API_URL;
-  }
-
-  // For Replit, use the Replit URL with port 3001 (server port)
-  if (isReplit && process.env.REPL_URL) {
-    const baseUrl = process.env.REPL_URL.replace(/\/$/, ''); // Remove trailing slash if present
-    return `${baseUrl}:3001`;
-  }
-
-  // Default to port 3000 for local development
-  return 'http://localhost:3000';
-};
-
-// Get the base URL for client
-const getBaseUrl = () => {
-  if (process.env.VITE_BASE_URL) {
-    return process.env.VITE_BASE_URL;
-  }
-
-  if (isReplit && process.env.REPL_URL) {
-    return process.env.REPL_URL.replace(/\/$/, '');
-  }
-
-  return 'http://localhost:5173';
-};
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src')
-    }
-  },
   server: {
-    proxy: {
-      '/api': {
-        target: getApiUrl(),
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
-      }
-    },
-    // Important: When on Replit, allow connections from all hosts
-    host: isReplit ? '0.0.0.0' : 'localhost',
-    // Use port 5173 always (will be mapped to 3000 externally in Replit)
+    host: '0.0.0.0',
     port: 5173,
-    // Ensure HMR works in Replit
+    strictPort: true,
     hmr: isReplit ? {
       clientPort: 443,
-      protocol: 'wss'
+      protocol: 'wss',
+      host: `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`,
+      timeout: 120000
     } : true,
-    // Always watch files
-    watch: {
-      usePolling: true,
-      interval: 1000
+    proxy: {
+      '/api': {
+        target: isReplit ? 'http://0.0.0.0:3001' : 'http://0.0.0.0:3000',
+        changeOrigin: true
+      }
     }
-  },
-  // Base URL for assets
-  base: isReplit ? '/' : '/',
-  // Build configuration
-  build: {
-    outDir: 'dist',
-    assetsDir: 'assets',
-    sourcemap: true
   }
 });
