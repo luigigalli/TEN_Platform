@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Environment detection
-const isReplit = Boolean(process.env.REPL_ID && process.env.REPL_OWNER);
+const isReplit = Boolean(process.env.REPL_URL);
 const isWindsurf = Boolean(process.env.WINDSURF_ENV);
 
 // Get appropriate API URL based on environment
@@ -17,12 +17,11 @@ const getApiUrl = () => {
     return process.env.VITE_API_URL;
   }
 
-  // For Replit, use the Replit URL with correct protocol
+  // For Replit, use the Replit URL with port 3001 (server port)
   if (isReplit && process.env.REPL_URL) {
-    const url = process.env.REPL_URL;
-    // Ensure URL uses HTTPS
-    const baseUrl = !url.startsWith('http') ? `https://${url}` : url;
-    return new URL(baseUrl).origin;
+    const url = new URL(process.env.REPL_URL);
+    url.port = '3001';
+    return url.toString();
   }
 
   if (isWindsurf) {
@@ -51,7 +50,7 @@ export default defineConfig({
     },
     // Important: When on Replit, allow connections from all hosts
     host: isReplit ? '0.0.0.0' : 'localhost',
-    // Use port 5173 by default (Vite's default)
+    // Use port 5173 always (will be mapped to 3000 externally in Replit)
     port: 5173
   }
 });

@@ -38,9 +38,9 @@ function buildConfig(): Config {
     const config = {
       env: env.NODE_ENV,
       server: {
-        port: 5000, // Always use port 5000 internally for Replit
-        externalPort: isReplit ? 3000 : 5000, // Map to port 3000 externally on Replit
-        host: '0.0.0.0',
+        port: isReplit ? 3000 : (env.PORT || 5000), // Use 3000 in Replit (mapped to 3001 externally)
+        externalPort: isReplit ? 3001 : (env.PORT || 5000),
+        host: env.HOST || '0.0.0.0',
         corsOrigins: isDevelopment 
           ? ['*']
           : [
@@ -48,16 +48,18 @@ function buildConfig(): Config {
               ...(isReplit ? [
                 // Allow the specific Replit Dev URL if available
                 ...(replitDevDomain ? [replitDevDomain] : []),
-                // Fallback to the standard Replit domain pattern
-                new RegExp(`^https?://${env.REPL_SLUG}\\.${env.REPL_OWNER}\\.repl\\.co$`)
+                // Allow the configured REPL_URL
+                ...(env.REPL_URL ? [env.REPL_URL] : [])
               ] : []),
               // Allow Windsurf domains
               ...(isWindsurf ? [new RegExp('^https?://.*\\.windsurf\\.dev$')] : []),
-              // Always allow local development
+              // Always allow development URLs
               'http://localhost:5000',
               'http://localhost:3000',
+              'http://localhost:3001',
               'http://127.0.0.1:5000',
-              'http://127.0.0.1:3000'
+              'http://127.0.0.1:3000',
+              'http://127.0.0.1:3001'
             ]
       },
       database: {
@@ -72,7 +74,7 @@ function buildConfig(): Config {
     if (isDevelopment) {
       console.log('[config] Environment:', validated.env);
       console.log('[config] Server:', {
-        internalPort: validated.server.port,
+        port: validated.server.port,
         externalPort: validated.server.externalPort,
         host: validated.server.host,
         platform: isReplit ? 'Replit' : isWindsurf ? 'Windsurf' : 'Local',
@@ -99,5 +101,4 @@ function buildConfig(): Config {
 export const config = buildConfig();
 
 // Export environment utilities
-export { Environment, type Environment as EnvironmentType } from './environment';
-export { isReplit, isWindsurf, isDevelopment } from './environment';
+export * from './environment';

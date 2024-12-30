@@ -10,21 +10,21 @@ dotenv.config();
 const LOCAL_DB_URL = process.env.DATABASE_URL;
 const REPLIT_DB_URL = process.env.REPLIT_DB_URL;
 
-if (!LOCAL_DB_URL || !REPLIT_DB_URL) {
-  throw new Error('Both LOCAL_DB_URL and REPLIT_DB_URL must be set');
+if (!LOCAL_DB_URL) {
+  throw new Error('DATABASE_URL must be set');
 }
 
 // Create database clients
 const localClient = postgres(LOCAL_DB_URL);
-const replitClient = postgres(REPLIT_DB_URL);
+const replitClient = REPLIT_DB_URL ? postgres(REPLIT_DB_URL) : null;
 
 // Create Drizzle instances
 const localDb = drizzle(localClient, { schema });
-const replitDb = drizzle(replitClient, { schema });
+const replitDb = replitClient ? drizzle(replitClient, { schema }) : null;
 
 // Tables and their columns to sync
 const TABLE_COLUMNS = {
-  users: ['id', 'username', 'password', 'email', 'role', 'full_name', 'bio', 'avatar', 'languages', 'created_at'],
+  users: ['id', 'username', 'password', 'email', 'role', 'first_name', 'last_name', 'bio', 'avatar', 'languages', 'created_at', 'profile_completed'],
   services: ['id', 'title', 'description', 'price', 'location', 'provider_id', 'category', 'images', 'availability', 'created_at'],
   bookings: ['id', 'user_id', 'service_id', 'start_date', 'end_date', 'status', 'total_price', 'notes', 'created_at'],
   trips: ['id', 'title', 'description', 'user_id', 'destination', 'start_date', 'end_date', 'is_private', 'collaboration_settings', 'itinerary', 'created_at', 'updated_at'],
@@ -104,6 +104,10 @@ async function sync(direction: 'pull' | 'push') {
   
   try {
     for (const table of Object.keys(TABLE_COLUMNS)) {
+      if (direction === 'pull' && !replitDb) {
+        console.log(`Skipping ${table} because REPLIT_DB_URL is not set`);
+        continue;
+      }
       await syncTable(table, direction);
     }
     console.log('Sync completed successfully!');
@@ -114,7 +118,7 @@ async function sync(direction: 'pull' | 'push') {
     // Close database connections
     await Promise.all([
       localClient.end(),
-      replitClient.end()
+      replitClient?.end()
     ]);
     process.exit(0);
   }

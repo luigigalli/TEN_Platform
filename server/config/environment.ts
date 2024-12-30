@@ -108,26 +108,24 @@ export function loadEnvVars(): EnvVars {
 export const env = loadEnvVars();
 
 // Environment detection utilities
-export const isReplit = Boolean(env.REPL_ID && env.REPL_OWNER);
-export const isWindsurf = Boolean(env.WINDSURF_ENV);
-export const isDevelopment = env.NODE_ENV === 'development';
+export const isReplit = Boolean(process.env.REPL_URL);
+export const isWindsurf = Boolean(process.env.WINDSURF_ENV);
+export const isDevelopment = process.env.NODE_ENV === 'development';
 
 // Get the Replit Dev URL for CORS and logging
-export const getReplitDevDomain = () => {
-  if (!isReplit || !env.REPL_URL) return null;
-  return env.REPL_URL;
-};
+export function getReplitDevDomain(): string | null {
+  return isReplit ? process.env.REPL_URL || null : null;
+}
 
 // Get the external URL for server logging
-export const getExternalUrl = (port: number) => {
-  // For Replit, always use the Replit URL when available
-  if (isReplit && env.REPL_URL) {
-    return env.REPL_URL;
+export function getExternalUrl(port: number): string {
+  if (isReplit && process.env.REPL_URL) {
+    return process.env.REPL_URL;
   }
-
-  // For local development or when Replit URL is not available
-  const host = env.HOST === '0.0.0.0' ? 'localhost' : env.HOST;
-  // When on Replit, use port 3000 for external URLs
-  const externalPort = isReplit ? 3000 : port;
-  return `http://${host}:${externalPort}`;
-};
+  
+  if (isWindsurf) {
+    return `http://localhost:${port}`;
+  }
+  
+  return `http://localhost:${port}`;
+}
