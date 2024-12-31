@@ -16,6 +16,6 @@ const connectionOptions = {
 };
 
 export const db = drizzle(
-  postgres(poolerUrl, connectionOptions),
+  postgres(process.env.REPLIT_DB_URL, connectionOptions),
   { schema }
 );
