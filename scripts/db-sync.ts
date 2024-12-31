@@ -37,12 +37,12 @@ const baseOptions = {
 // Create database clients with environment-specific options
 const localClient = postgres(LOCAL_DB_URL, {
   ...baseOptions,
-  ssl: false // Disable SSL for local connection
+  ssl: { rejectUnauthorized: false }
 });
 
 const replitClient = postgres(REPLIT_DB_URL, {
   ...baseOptions,
-  ssl: { rejectUnauthorized: false } // Enable SSL with certificate verification disabled for Neon
+  ssl: { rejectUnauthorized: false }
 });
 
 // Create Drizzle instances
