@@ -56,7 +56,7 @@ function buildConfig(): Config {
             ]
       },
       database: {
-        url: env.DATABASE_URL
+        url: env.REPLIT_DB_URL
       }
     };
 
