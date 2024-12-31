@@ -6,18 +6,25 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Ensure we're using PostgreSQL URL
 const DB_URL = process.env.DATABASE_URL;
-
 if (!DB_URL) {
-  console.error('Error: DATABASE_URL must be set');
+  console.error('Error: DATABASE_URL environment variable is not set');
   process.exit(1);
 }
 
-// Enhanced PostgreSQL connection with better timeout handling
+if (!DB_URL.includes('postgres')) {
+  console.error('Error: DATABASE_URL must be a PostgreSQL connection string');
+  process.exit(1);
+}
+
+console.log('Using PostgreSQL database URL:', DB_URL.replace(/:[^:]*@/, ':***@')); // Hide password
+
+// Configure PostgreSQL client with proper SSL and timeouts
 const client = postgres(DB_URL, {
   max: 1,
-  idle_timeout: 60, // Increased from 20 to 60
-  connect_timeout: 60, // Increased from 30 to 60
+  idle_timeout: 60,
+  connect_timeout: 60,
   ssl: {
     rejectUnauthorized: false // Required for Replit's PostgreSQL
   },
@@ -33,28 +40,27 @@ async function sync() {
   console.log('Starting database sync...');
 
   try {
-    // Test connection
+    // Test connection with detailed error reporting
     console.log('Testing database connection...');
-    await db.execute(sql.raw('SELECT 1'));
-    console.log('Successfully connected to database');
+    const testResult = await db.execute(sql`SELECT version(), current_database(), current_user, inet_server_addr() AS server_ip`);
 
-    // Get database info
-    const result = await db.execute(sql.raw('SELECT current_database(), current_user'));
-    console.log('Connected to database:', result[0].current_database);
-    console.log('Connected as user:', result[0].current_user);
+    console.log('\nDatabase Connection Info:');
+    console.log('- PostgreSQL Version:', testResult[0].version);
+    console.log('- Database:', testResult[0].current_database);
+    console.log('- User:', testResult[0].current_user);
+    console.log('- Server IP:', testResult[0].server_ip);
 
-    // Additional connection info for debugging
-    console.log('Using database URL:', DB_URL.replace(/:[^:]*@/, ':***@')); // Hide password
-
-    console.log('Sync completed successfully!');
+    console.log('\nSync completed successfully!');
   } catch (error) {
-    console.error('Database sync failed:', error);
-    // Enhanced error logging
+    console.error('\nDatabase sync failed!');
     if (error instanceof Error) {
       console.error('Error details:', {
         name: error.name,
         message: error.message,
-        stack: error.stack
+        code: (error as any).code,
+        errno: (error as any).errno,
+        address: (error as any).address,
+        port: (error as any).port
       });
     }
     process.exit(1);
