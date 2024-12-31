@@ -20,17 +20,17 @@ if (!DB_URL.includes('postgres')) {
 
 console.log('Using PostgreSQL database URL:', DB_URL.replace(/:[^:]*@/, ':***@')); // Hide password
 
-// Configure PostgreSQL client with proper SSL and timeouts
+// Configure PostgreSQL client with proper SSL settings and extended timeouts
 const client = postgres(DB_URL, {
   max: 1,
-  idle_timeout: 60,
-  connect_timeout: 60,
-  ssl: {
+  idle_timeout: 120, // Extended from 60 to 120
+  connect_timeout: 120, // Extended from 60 to 120
+  ssl: process.env.NODE_ENV === 'production' ? {
     rejectUnauthorized: false // Required for Replit's PostgreSQL
-  },
+  } : false,
   connection: {
-    statement_timeout: 60000, // 1 minute timeout for statements
-    query_timeout: 60000 // 1 minute timeout for queries
+    statement_timeout: 120000, // Extended from 60000 to 120000
+    query_timeout: 120000 // Extended from 60000 to 120000
   }
 });
 
@@ -52,7 +52,7 @@ async function sync() {
 
     console.log('\nSync completed successfully!');
   } catch (error) {
-    console.error('\nDatabase sync failed!');
+    console.error('\nDatabase sync failed:');
     if (error instanceof Error) {
       console.error('Error details:', {
         name: error.name,
@@ -62,6 +62,18 @@ async function sync() {
         address: (error as any).address,
         port: (error as any).port
       });
+
+      // Additional error information for connection issues
+      if ((error as any).code === 'CONNECT_TIMEOUT') {
+        console.error('\nConnection timeout - possible causes:');
+        console.error('1. Database server is not reachable');
+        console.error('2. Firewall blocking connection');
+        console.error('3. Incorrect database URL or credentials');
+        console.error('\nPlease verify:');
+        console.error('- DATABASE_URL environment variable is correctly set');
+        console.error('- PostgreSQL service is running');
+        console.error('- Network/firewall allows connection to the database port');
+      }
     }
     process.exit(1);
   } finally {
