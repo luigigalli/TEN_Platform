@@ -15,22 +15,12 @@ if (!DB_URL) {
 }
 
 // Intercept and redirect connection
-const client = postgres(DB_URL, {
-  max: 10,
+const poolerUrl = DB_URL.replace('.us-east-2', '-pooler.us-east-2');
+const client = postgres(poolerUrl, {
+  max: 1,
   idle_timeout: 20,
-  connect_timeout: 30,
-  ssl: { rejectUnauthorized: false },
-  onconnect: async (connection) => {
-    // Override connection host if it's trying to reach kv.replit.com
-    if (connection.host === 'kv.replit.com') {
-      const neonUrl = new URL(DB_URL);
-      connection.host = neonUrl.hostname;
-      connection.port = parseInt(neonUrl.port || '5432');
-      connection.database = neonUrl.pathname.slice(1);
-      connection.user = neonUrl.username;
-      connection.password = neonUrl.password;
-    }
-  }
+  connect_timeout: 10,
+  ssl: { rejectUnauthorized: false }
 });
 
 const db = drizzle(client, { schema });
