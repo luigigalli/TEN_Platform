@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -11,7 +12,7 @@ const isReplit = Boolean(process.env.REPL_ID)
 
 // Port configuration
 const serverPort = isReplit ? 3000 : 3000
-const clientPort = 5174
+const clientPort = 5175
 
 export default defineConfig({
   plugins: [
@@ -27,9 +28,8 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: clientPort,
-    strictPort: true, // Ensure Vite uses exactly the port we specify
+    strictPort: true,
     hmr: {
-      // Disable WebSocket server in Replit
       port: isReplit ? undefined : 24678,
     },
     proxy: {
