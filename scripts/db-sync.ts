@@ -7,9 +7,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-import dotenv from 'dotenv';
-dotenv.config();
-
 const REPLIT_DB_URL = process.env.REPLIT_DB_URL;
 
 if (!REPLIT_DB_URL) {
@@ -17,17 +14,13 @@ if (!REPLIT_DB_URL) {
   process.exit(1);
 }
 
-const baseOptions = {
+const client = postgres(REPLIT_DB_URL, {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 30,
-  ssl: { 
-    rejectUnauthorized: false 
-  },
-  keepAlive: true
-};
+  ssl: { rejectUnauthorized: false }
+});
 
-const client = postgres(REPLIT_DB_URL, baseOptions);
 const db = drizzle(client, { schema });
 
 async function sync() {
@@ -35,10 +28,11 @@ async function sync() {
   
   try {
     await db.execute(sql.raw('SELECT 1'));
-    console.log('Successfully connected to Replit database');
+    console.log('Successfully connected to Neon database');
     
     // Perform sync operations
-    await db.execute(sql.raw('SELECT current_database()'));
+    const result = await db.execute(sql.raw('SELECT current_database()'));
+    console.log('Connected to database:', result[0].current_database);
     console.log('Sync completed successfully!');
   } catch (error) {
     console.error('Database sync failed:', error);
