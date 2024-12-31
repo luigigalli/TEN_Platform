@@ -8,7 +8,7 @@ dotenv.config();
 
 // Database URLs
 const LOCAL_DB_URL = process.env.DATABASE_URL;
-const REPLIT_DB_URL = process.env.REPLIT_DB_URL?.replace('.us-east-2', '-pooler.us-east-2');
+const REPLIT_DB_URL = process.env.REPLIT_DB_URL;
 
 // Validate required connections based on direction
 const direction = process.argv[2] as 'pull' | 'push';
