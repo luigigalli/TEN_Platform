@@ -28,7 +28,7 @@ async function sync() {
   
   try {
     await db.execute(sql.raw('SELECT 1'));
-    console.log('Successfully connected to Neon database');
+    console.log('Successfully connected to database');
     
     // Perform sync operations
     const result = await db.execute(sql.raw('SELECT current_database()'));

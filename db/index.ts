@@ -7,7 +7,7 @@ import { DatabaseConfigError } from '../server/errors';
 const connectionOptions = {
   max: 10,
   idle_timeout: 20,
-  connect_timeout: 10,
+  connect_timeout: 30,
   ssl: { rejectUnauthorized: false }
 };
 
