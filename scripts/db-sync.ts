@@ -7,6 +7,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+import dotenv from 'dotenv';
+dotenv.config();
+
 const REPLIT_DB_URL = process.env.REPLIT_DB_URL;
 
 if (!REPLIT_DB_URL) {
@@ -18,7 +21,9 @@ const baseOptions = {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 30,
-  ssl: { rejectUnauthorized: false },
+  ssl: { 
+    rejectUnauthorized: false 
+  },
   keepAlive: true
 };
 
