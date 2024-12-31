@@ -24,7 +24,7 @@ export const isDevelopment = process.env.NODE_ENV === 'development';
 
 // Get the default port based on environment
 const getDefaultPort = () => {
-  if (isReplit) return 3000;
+  if (isReplit) return 3001;
   return 3000;
 };
 
