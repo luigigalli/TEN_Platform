@@ -10,17 +10,44 @@ dotenv.config();
 const LOCAL_DB_URL = process.env.DATABASE_URL;
 const REPLIT_DB_URL = process.env.REPLIT_DB_URL;
 
-if (!LOCAL_DB_URL) {
-  throw new Error('DATABASE_URL must be set');
+// Validate required connections based on direction
+const direction = process.argv[2] as 'pull' | 'push';
+if (!direction || !['pull', 'push'].includes(direction)) {
+  console.error('Usage: npm run db:sync [pull|push]');
+  process.exit(1);
 }
 
-// Create database clients
-const localClient = postgres(LOCAL_DB_URL);
-const replitClient = REPLIT_DB_URL ? postgres(REPLIT_DB_URL) : null;
+if (!REPLIT_DB_URL) {
+  console.error('Error: REPLIT_DB_URL must be set');
+  process.exit(1);
+}
+
+if (!LOCAL_DB_URL) {
+  console.error('Error: DATABASE_URL must be set');
+  process.exit(1);
+}
+
+// Base connection options
+const baseOptions = {
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
+};
+
+// Create database clients with environment-specific options
+const localClient = postgres(LOCAL_DB_URL, {
+  ...baseOptions,
+  ssl: false // Disable SSL for local connection
+});
+
+const replitClient = postgres(REPLIT_DB_URL, {
+  ...baseOptions,
+  ssl: { rejectUnauthorized: false } // Enable SSL with certificate verification disabled for Neon
+});
 
 // Create Drizzle instances
 const localDb = drizzle(localClient, { schema });
-const replitDb = replitClient ? drizzle(replitClient, { schema }) : null;
+const replitDb = drizzle(replitClient, { schema });
 
 // Tables and their columns to sync
 const TABLE_COLUMNS = {
@@ -103,11 +130,24 @@ async function sync(direction: 'pull' | 'push') {
   console.log(`Starting database sync (${direction})...`);
   
   try {
+    // Test both database connections
+    try {
+      await localDb.execute(sql.raw('SELECT 1'));
+      console.log('Successfully connected to local database');
+    } catch (error) {
+      console.error('Failed to connect to local database:', error);
+      throw new Error('Local database connection failed');
+    }
+
+    try {
+      await replitDb.execute(sql.raw('SELECT 1'));
+      console.log('Successfully connected to Replit database');
+    } catch (error) {
+      console.error('Failed to connect to Replit database:', error);
+      throw new Error('Replit database connection failed');
+    }
+    
     for (const table of Object.keys(TABLE_COLUMNS)) {
-      if (direction === 'pull' && !replitDb) {
-        console.log(`Skipping ${table} because REPLIT_DB_URL is not set`);
-        continue;
-      }
       await syncTable(table, direction);
     }
     console.log('Sync completed successfully!');
@@ -118,17 +158,11 @@ async function sync(direction: 'pull' | 'push') {
     // Close database connections
     await Promise.all([
       localClient.end(),
-      replitClient?.end()
+      replitClient.end()
     ]);
     process.exit(0);
   }
 }
 
 // Command line interface
-const direction = process.argv[2] as 'pull' | 'push';
-if (!direction || !['pull', 'push'].includes(direction)) {
-  console.error('Usage: npm run db:sync [pull|push]');
-  process.exit(1);
-}
-
 sync(direction);
