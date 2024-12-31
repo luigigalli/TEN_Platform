@@ -8,11 +8,11 @@ if (!process.env.REPLIT_DB_URL) {
   throw new DatabaseConfigError('Missing REPLIT_DB_URL environment variable');
 }
 
-// Connect using pooler URL for better stability
-const poolerUrl = process.env.REPLIT_DB_URL.replace('.us-east-2', '-pooler.us-east-2');
+// Ensure we're using the PostgreSQL URL directly
+const dbUrl = process.env.REPLIT_DB_URL;
 
 const connectionOptions = {
-  max: 1, // Reduce max connections
+  max: 1,
   idle_timeout: 20,
   connect_timeout: 10,
   ssl: { rejectUnauthorized: false }
