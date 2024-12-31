@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { InsertUser } from "@db/schema";
+import { useLocation } from "wouter";
 
 // Form validation schemas
 const loginSchema = z.object({
@@ -49,6 +50,7 @@ export default function AuthPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, register } = useUser();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   // Login form
   const loginForm = useForm<LoginFormData>({
@@ -91,6 +93,12 @@ export default function AuthPage() {
       title: "Success",
       description: result.message ?? (action === 'Login' ? "Welcome back!" : "Account created successfully!")
     });
+
+    // Navigate to home page on success
+    if (action === 'Login') {
+      setLocation('/');
+    }
+    
     return true;
   };
 
@@ -109,7 +117,19 @@ export default function AuthPage() {
         };
 
         const result = await login(loginData);
-        handleAuthResponse(result, 'Login');
+        if (result.ok) {
+          toast({
+            title: "Success",
+            description: result.message || "Login successful",
+          });
+          setLocation("/");
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: result.message || "Login failed",
+          });
+        }
       } else {
         const registerData = data as RegisterFormData;
         // Generate username from first name

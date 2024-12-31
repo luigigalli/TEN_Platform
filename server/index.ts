@@ -48,7 +48,6 @@ process.on('SIGINT', async () => {
     // Ensure cleanup before starting
     await cleanup();
 
-    // Initialize server with environment-aware configuration
     console.log('[config] Environment variables loaded successfully');
     console.log('[config] Platform:', isReplit ? 'Replit' : 'Local');
     
@@ -57,21 +56,22 @@ process.on('SIGINT', async () => {
       console.log('[config] Replit Dev URL:', getExternalUrl(env.EXTERNAL_PORT));
     }
 
-    // Initialize the server with the correct port
-    const serverPort = isReplit ? env.PORT : env.PORT;
-    serverInstance = await initializeServer({
-      port: serverPort,
-      maxRetries: 3,
-      retryDelay: 1000
-    });
-    const { app } = serverInstance;
+    const app = express();
+    serverInstance = await initializeServer(app);
 
-    // Register routes
+    // Register API routes first
     registerRoutes(app);
 
-    // Add error handling middleware
+    // Set up environment-specific middleware after API routes
+    if (config.env === 'development') {
+      await handleViteMiddleware(app, serverInstance.server);
+    } else {
+      handleStaticFiles(app);
+    }
+
+    // Add error handling middleware last
     app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-      console.error('Server error:', err);
+      console.error('[BACKEND] Unhandled error:', err);
       const status = err.statusCode || err.status || 500;
       const message = err.message || 'Internal Server Error';
       res.status(status).json({ 
@@ -81,21 +81,14 @@ process.on('SIGINT', async () => {
       });
     });
 
-    // Set up environment-specific middleware
-    if (config.env === 'development') {
-      await handleViteMiddleware(app, serverInstance.server);
-    } else {
-      handleStaticFiles(app);
-    }
-
     // Log server configuration
     console.log('\nServer Configuration:');
     console.log('- Environment:', env.NODE_ENV);
     console.log('- Platform:', isReplit ? 'Replit' : 'Local');
-    console.log('- Internal Port:', serverPort);
-    console.log('- External Port:', isReplit ? env.EXTERNAL_PORT : serverPort);
+    console.log('- Internal Port:', serverInstance.server.address().port);
+    console.log('- External Port:', isReplit ? env.EXTERNAL_PORT : serverInstance.server.address().port);
     console.log('- Host:', env.HOST);
-    console.log('- URL:', env.REPL_URL || getExternalUrl(serverPort));
+    console.log('- URL:', env.REPL_URL || getExternalUrl(serverInstance.server.address().port));
     if (isReplit) {
       console.log('- Client Port:', env.CLIENT_PORT);
       console.log('- External Client Port:', env.EXTERNAL_CLIENT_PORT);

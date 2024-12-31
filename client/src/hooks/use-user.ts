@@ -72,9 +72,9 @@ class UserError extends Error {
 
   static fromResponse(response: Response, data: any): UserError {
     return new UserError(
-      data?.message || response.statusText,
+      data.message || 'Request failed',
       {
-        code: data?.code || 'request_failed',
+        code: data.code,
         status: response.status,
       }
     );
@@ -84,10 +84,7 @@ class UserError extends Error {
     if (error instanceof UserError) {
       return error;
     }
-    return new UserError(
-      error instanceof Error ? error.message : 'Unknown error',
-      { code: 'unknown_error', status: 0 }
-    );
+    return new UserError(error instanceof Error ? error.message : 'Unknown error');
   }
 }
 
@@ -100,10 +97,7 @@ function validateRequestResult(result: unknown): RequestResult {
   try {
     return requestResultSchema.parse(result);
   } catch (error) {
-    throw new UserError(
-      'Invalid request result',
-      { code: 'validation_error', status: 500 }
-    );
+    throw new UserError('Invalid response format');
   }
 }
 
@@ -121,41 +115,41 @@ async function handleRequest(
   body?: InsertUser
 ): Promise<RequestResult> {
   try {
-    const response = await fetch(url, {
-      method,
-      headers: body ? { 
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-      } : {
-        "Accept": "application/json",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: "include",
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      return validateRequestResult({ 
-        ok: false, 
-        message: data.message || response.statusText,
-        code: data.code || "request_failed",
-        status: response.status,
-      });
+    console.log(`[FRONTEND] Making ${method} request to ${url}`);
+    if (body) {
+      console.log('[FRONTEND] Request body:', JSON.stringify(body, null, 2));
     }
 
-    return validateRequestResult({ 
-      ok: true,
-      ...data,
+    const response = await fetch(`/api/user${url}`, {
+      method,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: body ? JSON.stringify(body) : undefined
     });
-  } catch (err) {
-    const error = UserError.fromError(err);
-    return validateRequestResult({ 
-      ok: false, 
-      message: error.message,
-      code: error.code || "network_error",
-      status: error.status || 0,
-    });
+
+    console.log(`[FRONTEND] Response status: ${response.status}`);
+    
+    let data;
+    try {
+      const text = await response.text();
+      console.log('[FRONTEND] Raw response:', text);
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      console.error('[FRONTEND] Failed to parse response:', e);
+      throw new UserError('Invalid response format');
+    }
+
+    if (!response.ok) {
+      console.error('[FRONTEND] Request failed:', data);
+      throw UserError.fromResponse(response, data);
+    }
+
+    return validateRequestResult(data);
+  } catch (error) {
+    console.error('[FRONTEND] Request error:', error);
+    throw UserError.fromError(error);
   }
 }
 
@@ -167,24 +161,24 @@ async function handleRequest(
 async function fetchUser(): Promise<SelectUser | null> {
   try {
     const response = await fetch("/api/user", {
-      credentials: "include",
-      headers: {
-        "Accept": "application/json",
-      },
+      credentials: "include"
     });
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        return null;
-      }
+    if (response.status === 401) {
+      return null;
+    }
 
+    if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw UserError.fromResponse(response, data);
     }
 
     const userData = await response.json();
-    return userData;
+    return userData === null ? null : userData as SelectUser;
   } catch (err) {
+    if (err instanceof UserError && err.status === 401) {
+      return null;
+    }
     throw UserError.fromError(err);
   }
 }
@@ -207,13 +201,16 @@ export function useUser(): UseUserResult {
     queryFn: fetchUser,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: (failureCount, error) => {
+      // Don't retry on 401s
       if (error.status === 401) return false;
       return failureCount < 3;
     },
+    // Force refetch on window focus
+    refetchOnWindowFocus: true,
   });
 
   const loginMutation = useMutation<RequestResult, UserError, InsertUser>({
-    mutationFn: (userData) => handleRequest("/api/login", "POST", userData),
+    mutationFn: (userData) => handleRequest("/login", "POST", userData),
     onSuccess: (result) => {
       if (result.ok) {
         queryClient.invalidateQueries({ queryKey: ["user"] });
@@ -242,7 +239,7 @@ export function useUser(): UseUserResult {
   });
 
   const logoutMutation = useMutation<RequestResult, UserError>({
-    mutationFn: () => handleRequest("/api/logout", "POST"),
+    mutationFn: () => handleRequest("/logout", "POST"),
     onSuccess: (result) => {
       if (result.ok) {
         queryClient.setQueryData(["user"], null);
@@ -269,7 +266,7 @@ export function useUser(): UseUserResult {
   });
 
   const registerMutation = useMutation<RequestResult, UserError, InsertUser>({
-    mutationFn: (userData) => handleRequest("/api/register", "POST", userData),
+    mutationFn: (userData) => handleRequest("/register", "POST", userData),
     onSuccess: (result) => {
       if (result.ok) {
         queryClient.invalidateQueries({ queryKey: ["user"] });
@@ -278,7 +275,7 @@ export function useUser(): UseUserResult {
         }
         toast({
           title: "Success",
-          description: result.message || "Account created successfully!",
+          description: result.message || "Registered successfully!",
         });
       } else {
         toast({
@@ -297,13 +294,13 @@ export function useUser(): UseUserResult {
     },
   });
 
-  return Object.freeze({
-    user,
+  return {
+    user: user ?? null,
     isLoading,
     isError,
-    error: error ?? null,
+    error,
     login: loginMutation.mutateAsync,
     logout: logoutMutation.mutateAsync,
     register: registerMutation.mutateAsync,
-  });
+  };
 }

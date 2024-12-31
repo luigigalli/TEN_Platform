@@ -42,9 +42,9 @@ export default function Navigation({ user }: NavigationProps) {
             <div className="flex items-center gap-6">
               <NavigationMenuItem>
                 <Link href="/">
-                  <a className="text-xl font-bold text-primary hover:text-primary/90 transition-colors">
+                  <span className="text-xl font-bold text-primary hover:text-primary/90 transition-colors cursor-pointer">
                     TEN
-                  </a>
+                  </span>
                 </Link>
               </NavigationMenuItem>
               <NavigationMenuItem>
@@ -53,7 +53,9 @@ export default function Navigation({ user }: NavigationProps) {
                     variant="ghost"
                     aria-label="View Services"
                   >
-                    Services
+                    <span className="text-sm font-medium hover:text-primary/90 transition-colors cursor-pointer">
+                      Services
+                    </span>
                   </Button>
                 </Link>
               </NavigationMenuItem>
@@ -63,7 +65,9 @@ export default function Navigation({ user }: NavigationProps) {
                     variant="ghost"
                     aria-label="View Bookings"
                   >
-                    My Bookings
+                    <span className="text-sm font-medium hover:text-primary/90 transition-colors cursor-pointer">
+                      My Bookings
+                    </span>
                   </Button>
                 </Link>
               </NavigationMenuItem>
@@ -73,7 +77,9 @@ export default function Navigation({ user }: NavigationProps) {
                     variant="ghost"
                     aria-label="View Trip Planner"
                   >
-                    Trip Planner
+                    <span className="text-sm font-medium hover:text-primary/90 transition-colors cursor-pointer">
+                      Trip Planner
+                    </span>
                   </Button>
                 </Link>
               </NavigationMenuItem>
@@ -82,7 +88,7 @@ export default function Navigation({ user }: NavigationProps) {
             <div className="flex items-center gap-4">
               <NavigationMenuItem>
                 <Link href="/profile">
-                  <a className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+                  <span className="flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer">
                     <Avatar>
                       <AvatarImage 
                         src={user.avatar ?? undefined} 
@@ -93,7 +99,7 @@ export default function Navigation({ user }: NavigationProps) {
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-sm font-medium">{user.username}</span>
-                  </a>
+                  </span>
                 </Link>
               </NavigationMenuItem>
               <NavigationMenuItem>
@@ -102,7 +108,9 @@ export default function Navigation({ user }: NavigationProps) {
                   onClick={handleLogout}
                   aria-label="Logout from your account"
                 >
-                  Logout
+                  <span className="text-sm font-medium hover:text-primary/90 transition-colors cursor-pointer">
+                    Logout
+                  </span>
                 </Button>
               </NavigationMenuItem>
             </div>
