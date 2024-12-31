@@ -17,12 +17,9 @@ if (!REPLIT_DB_URL) {
 const baseOptions = {
   max: 10,
   idle_timeout: 20,
-  connect_timeout: 10,
+  connect_timeout: 30,
   ssl: { rejectUnauthorized: false },
-  keepAlive: true,
-  connection: {
-    application_name: 'db_sync'
-  }
+  keepAlive: true
 };
 
 const client = postgres(REPLIT_DB_URL, baseOptions);
@@ -35,7 +32,8 @@ async function sync() {
     await db.execute(sql.raw('SELECT 1'));
     console.log('Successfully connected to Replit database');
     
-    // Your sync operations here
+    // Perform sync operations
+    await db.execute(sql.raw('SELECT current_database()'));
     console.log('Sync completed successfully!');
   } catch (error) {
     console.error('Database sync failed:', error);
