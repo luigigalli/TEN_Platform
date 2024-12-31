@@ -38,17 +38,20 @@ const baseOptions = {
 const localClient = postgres(LOCAL_DB_URL, {
   ...baseOptions,
   ssl: { rejectUnauthorized: false },
-  max: 3
+  max: 1
 });
 
 const replitClient = postgres(REPLIT_DB_URL?.replace('.us-east-2', '-pooler.us-east-2'), {
   ...baseOptions,
   ssl: { rejectUnauthorized: false },
-  connect_timeout: 120,
-  idle_timeout: 120,
+  connect_timeout: 180,
+  idle_timeout: 180,
   max_lifetime: 60 * 60,
-  max: 3,
-  keepAlive: true
+  max: 1,
+  keepAlive: true,
+  connection: {
+    application_name: 'db_sync'
+  }
 });
 
 // Create Drizzle instances
