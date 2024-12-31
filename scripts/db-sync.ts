@@ -14,9 +14,8 @@ if (!DB_URL) {
   process.exit(1);
 }
 
-// Intercept and redirect connection
-const poolerUrl = DB_URL.replace('.us-east-2', '-pooler.us-east-2');
-const client = postgres(poolerUrl, {
+// Direct PostgreSQL connection
+const client = postgres(DB_URL, {
   max: 1,
   idle_timeout: 20,
   connect_timeout: 10,
