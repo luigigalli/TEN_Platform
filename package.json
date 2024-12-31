@@ -15,7 +15,8 @@
     "db:pull": "tsx scripts/db-sync.ts pull",
     "db:push-replit": "tsx scripts/db-sync.ts push",
     "sync:windsurf": "bash scripts/sync-windsurf.sh",
-    "sync:replit": "bash scripts/sync-replit.sh"
+    "sync:replit": "bash scripts/sync-replit.sh",
+    "check-users": "tsx scripts/check-users.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
