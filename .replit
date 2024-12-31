@@ -5,15 +5,17 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 [nix]
 channel = "stable-24_05"
 
-# Client (Vite) - Maps internal port 5173 to external port 80
+[[ports]]
+localPort = 3001
+externalPort = 3001
+
 [[ports]]
 localPort = 5173
 externalPort = 80
 
-# Server/API - Maps internal port 3001 to external port 3001
 [[ports]]
-localPort = 3001
-externalPort = 3001
+localPort = 24678
+externalPort = 3000
 
 [deployment]
 run = ["npm", "run", "start"]
