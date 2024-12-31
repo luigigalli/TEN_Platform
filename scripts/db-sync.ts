@@ -14,11 +14,23 @@ if (!DB_URL) {
   process.exit(1);
 }
 
+// Intercept and redirect connection
 const client = postgres(DB_URL, {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 30,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  onconnect: async (connection) => {
+    // Override connection host if it's trying to reach kv.replit.com
+    if (connection.host === 'kv.replit.com') {
+      const neonUrl = new URL(DB_URL);
+      connection.host = neonUrl.hostname;
+      connection.port = parseInt(neonUrl.port || '5432');
+      connection.database = neonUrl.pathname.slice(1);
+      connection.user = neonUrl.username;
+      connection.password = neonUrl.password;
+    }
+  }
 });
 
 const db = drizzle(client, { schema });
@@ -30,7 +42,6 @@ async function sync() {
     await db.execute(sql.raw('SELECT 1'));
     console.log('Successfully connected to database');
     
-    // Perform sync operations
     const result = await db.execute(sql.raw('SELECT current_database()'));
     console.log('Connected to database:', result[0].current_database);
     console.log('Sync completed successfully!');
