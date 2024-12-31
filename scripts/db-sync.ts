@@ -40,12 +40,13 @@ const localClient = postgres(LOCAL_DB_URL, {
   ssl: { rejectUnauthorized: false }
 });
 
-const replitClient = postgres(REPLIT_DB_URL, {
+const replitClient = postgres(REPLIT_DB_URL?.replace('.us-east-2', '-pooler.us-east-2'), {
   ...baseOptions,
   ssl: { rejectUnauthorized: false },
-  connect_timeout: 30,
-  idle_timeout: 30,
-  max_lifetime: 60 * 30
+  connect_timeout: 60,
+  idle_timeout: 60,
+  max_lifetime: 60 * 60,
+  max: 5
 });
 
 // Create Drizzle instances
