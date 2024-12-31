@@ -10,6 +10,9 @@ dotenv.config();
 const LOCAL_DB_URL = process.env.DATABASE_URL;
 const REPLIT_DB_URL = process.env.REPLIT_DB_URL;
 
+console.log('Local Database URL:', LOCAL_DB_URL?.split('@')[1] || 'not set');
+console.log('Replit Database URL:', REPLIT_DB_URL?.split('@')[1] || 'not set');
+
 // Validate required connections based on direction
 const direction = process.argv[2] as 'pull' | 'push';
 if (!direction || !['pull', 'push'].includes(direction)) {
