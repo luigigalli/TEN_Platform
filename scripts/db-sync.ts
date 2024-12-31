@@ -7,14 +7,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const REPLIT_DB_URL = process.env.REPLIT_DB_URL;
+const DB_URL = process.env.REPLIT_DB_URL;
 
-if (!REPLIT_DB_URL) {
+if (!DB_URL) {
   console.error('Error: REPLIT_DB_URL must be set');
   process.exit(1);
 }
 
-const client = postgres(REPLIT_DB_URL, {
+const client = postgres(DB_URL, {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 30,
