@@ -8,7 +8,7 @@ dotenv.config();
 
 // Database URLs
 const LOCAL_DB_URL = process.env.DATABASE_URL;
-const REPLIT_DB_URL = process.env.REPLIT_DB_URL;
+const REPLIT_DB_URL = process.env.REPLIT_DB_URL?.replace('.us-east-2', '-pooler.us-east-2');
 
 // Validate required connections based on direction
 const direction = process.argv[2] as 'pull' | 'push';
@@ -42,7 +42,10 @@ const localClient = postgres(LOCAL_DB_URL, {
 
 const replitClient = postgres(REPLIT_DB_URL, {
   ...baseOptions,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  connect_timeout: 30,
+  idle_timeout: 30,
+  max_lifetime: 60 * 30
 });
 
 // Create Drizzle instances
