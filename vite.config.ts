@@ -10,8 +10,8 @@ const __dirname = path.dirname(__filename)
 const isReplit = Boolean(process.env.REPL_ID)
 
 // Port configuration
-const serverPort = isReplit ? 3001 : 3000
-const clientPort = 5173
+const serverPort = isReplit ? 3000 : 3000
+const clientPort = 5174
 
 export default defineConfig({
   plugins: [
