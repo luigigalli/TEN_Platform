@@ -124,7 +124,3 @@ export class ServerValidator extends BaseValidator {
     });
   }
 }
-
-const config = detectEnvironment();
-const validator = new ServerValidator(config);
-validator.validate();

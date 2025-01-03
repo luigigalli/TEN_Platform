@@ -8,7 +8,7 @@
  */
 export interface DatabaseConfig {
   /** Expected prefix for database URLs (e.g., 'postgresql://' or 'postgres://') */
-  urlPrefix: string;
+  urlPrefix: string[];
   /** Whether SSL is required for database connections */
   requireSSL: boolean;
   /** Default connection pool settings */

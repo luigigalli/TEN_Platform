@@ -7,18 +7,12 @@ import { EnvironmentConfig } from './types';
 
 /**
  * Replit environment configuration
- * @example
- * ```typescript
- * // Usage in deployment validator
- * import { environments } from './environments';
- * const replitConfig = environments.replit;
- * ```
  */
 export const replitEnvironment: EnvironmentConfig = {
   name: 'replit',
   requiredVars: ['REPL_ID', 'REPL_SLUG'],
   database: {
-    urlPrefix: 'postgres://',
+    urlPrefix: ['postgresql://', 'postgres://'],
     requireSSL: true,
     poolConfig: {
       maxConnections: 10,
@@ -48,7 +42,7 @@ export const windsurfEnvironment: EnvironmentConfig = {
   name: 'windsurf',
   requiredVars: ['WINDSURF_ENV'],
   database: {
-    urlPrefix: 'postgresql://',
+    urlPrefix: ['postgresql://', 'postgres://'],
     requireSSL: false,
     poolConfig: {
       maxConnections: 5,
@@ -71,7 +65,7 @@ export const localEnvironment: EnvironmentConfig = {
   name: 'local',
   requiredVars: [],
   database: {
-    urlPrefix: 'postgresql://',
+    urlPrefix: ['postgresql://', 'postgres://'],
     requireSSL: false,
     poolConfig: {
       maxConnections: 5,
