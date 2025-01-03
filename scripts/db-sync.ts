@@ -78,8 +78,14 @@ async function syncTable(sourceDb: any, targetDb: any, tableName: string, attemp
       const batchSize = 25; // Reduced batch size for better handling
       for (let i = 0; i < sourceData.length; i += batchSize) {
         const batch = sourceData.slice(i, i + batchSize);
+
+        // Filter out non-column fields like 'members' that come from relations
         const columns = Object.keys(batch[0])
-          .filter(col => col !== undefined && batch[0][col] !== undefined);
+          .filter(col => {
+            // Skip relation fields that aren't actual columns
+            if (tableName === 'trips' && ['members'].includes(col)) return false;
+            return col !== undefined && batch[0][col] !== undefined;
+          });
 
         const values = batch.map(row => 
           `(${columns.map(col => {

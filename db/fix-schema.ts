@@ -5,13 +5,16 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const fixSchema = async () => {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.WINDSURF_DB_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL environment variable is not set');
+    throw new Error('WINDSURF_DB_URL environment variable is not set');
   }
 
-  const sql = postgres(connectionString, { max: 1 });
-  
+  const sql = postgres(connectionString, { 
+    max: 1,
+    ssl: { rejectUnauthorized: false }
+  });
+
   try {
     // Add new columns
     await sql`

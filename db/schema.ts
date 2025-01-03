@@ -17,7 +17,7 @@ export const users = pgTable("users", {
   username: text("username").unique(),  // Generated from firstName
   password: text("password").notNull(),
   email: text("email").unique().notNull(),
-  firstName: text("first_name"),        // Remove .notNull() constraint
+  firstName: text("first_name").notNull(),  // Now required
   lastName: text("last_name"),
   role: text("role").notNull().default("user"),
   bio: text("bio"),
@@ -31,7 +31,7 @@ export const users = pgTable("users", {
 export const insertUserSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   email: z.string().email("Invalid email format"),
-  firstName: z.string().min(2, "First name is required"),
+  firstName: z.string().min(2, "First name is required"),  // Now required
   lastName: z.string().optional(),
   username: z.string().optional(),  // Will be generated from firstName
   role: z.enum(["user", "expert", "provider", "admin"]).default("user"),
