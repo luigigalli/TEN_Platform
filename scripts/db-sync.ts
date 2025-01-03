@@ -90,47 +90,64 @@ async function testConnection(db: any, name: string) {
 }
 
 async function syncData(sourceDb: any, targetDb: any) {
-  // Get all tables from schema
-  const tables = Object.values(schema)
-    .filter((table: any) => typeof table === 'object' && table.hasOwnProperty('name'))
-    .map((table: any) => table.name);
+  // Define the table names explicitly based on our schema
+  const tableNames = [
+    'users',
+    'services',
+    'bookings',
+    'trips',
+    'posts',
+    'messages',
+    'trip_members',
+    'trip_activities',
+    'expert_messages'
+  ];
 
-  console.log('\nSyncing tables:', tables);
+  console.log('\nSyncing tables:', tableNames);
 
-  for (const tableName of tables) {
+  for (const tableName of tableNames) {
     console.log(`\nSyncing table: ${tableName}`);
 
-    // Get source data
-    const sourceData = await sourceDb.execute(sql`SELECT * FROM ${sql.identifier(tableName)}`);
-    console.log(`- Found ${sourceData.length} records in source`);
+    try {
+      // Get source data
+      const sourceData = await sourceDb.execute(sql`SELECT * FROM ${sql.identifier(tableName)}`);
+      console.log(`- Found ${sourceData.length} records in source`);
 
-    if (sourceData.length > 0) {
-      // Clear target table
-      await targetDb.execute(sql`TRUNCATE TABLE ${sql.identifier(tableName)} CASCADE`);
-      console.log('- Cleared target table');
+      if (sourceData.length > 0) {
+        // Clear target table
+        await targetDb.execute(sql`TRUNCATE TABLE ${sql.identifier(tableName)} CASCADE`);
+        console.log('- Cleared target table');
 
-      // Insert data in batches
-      const batchSize = 100;
-      for (let i = 0; i < sourceData.length; i += batchSize) {
-        const batch = sourceData.slice(i, i + batchSize);
-        const columns = Object.keys(batch[0]);
+        // Insert data in batches
+        const batchSize = 100;
+        for (let i = 0; i < sourceData.length; i += batchSize) {
+          const batch = sourceData.slice(i, i + batchSize);
+          const columns = Object.keys(batch[0]).filter(col => col !== undefined && batch[0][col] !== undefined);
 
-        // Generate insert query
-        const values = batch.map(row => 
-          `(${columns.map(col => {
-            const val = row[col];
-            return val === null ? 'NULL' : typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : val;
-          }).join(', ')})`
-        ).join(',\n');
+          // Generate insert query
+          const values = batch.map(row => 
+            `(${columns.map(col => {
+              const val = row[col];
+              if (val === null) return 'NULL';
+              if (typeof val === 'object') return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
+              if (typeof val === 'boolean') return val ? 'true' : 'false';
+              return typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : val;
+            }).join(', ')})`
+          ).join(',\n');
 
-        const query = sql`
-          INSERT INTO ${sql.identifier(tableName)} (${sql.join(columns.map(col => sql.identifier(col)), sql`, `)})
-          VALUES ${sql.raw(values)}
-        `;
+          const query = sql`
+            INSERT INTO ${sql.identifier(tableName)} (${sql.join(columns.map(col => sql.identifier(col)), sql`, `)})
+            VALUES ${sql.raw(values)}
+          `;
 
-        await targetDb.execute(query);
-        console.log(`- Inserted batch of ${batch.length} records`);
+          await targetDb.execute(query);
+          console.log(`- Inserted batch of ${batch.length} records`);
+        }
       }
+    } catch (error) {
+      console.error(`\nError syncing table ${tableName}:`, error);
+      // Continue with next table instead of exiting
+      continue;
     }
   }
 }
