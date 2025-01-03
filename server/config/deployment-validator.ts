@@ -56,18 +56,14 @@ export async function validateDeploymentEnvironment(): Promise<void> {
             console.error('[Deployment] Details:', JSON.stringify(error.details, null, 2));
           }
 
-          // Add troubleshooting hints based on validator type
-          if (validator instanceof DatabaseValidator) {
-            console.error('\n[Deployment] Troubleshooting steps:');
-            console.error('1. Verify DATABASE_URL environment variable');
-            console.error('2. Check database connection and credentials');
-            console.error('3. Ensure database server is running');
-            console.error('4. Verify SSL settings for your environment');
-          } else if (validator instanceof ServerValidator) {
-            console.error('\n[Deployment] Troubleshooting steps:');
-            console.error('1. Check if port is available');
-            console.error('2. Verify host configuration');
-            console.error('3. Check for conflicting services');
+          // Add environment-specific troubleshooting hints
+          if (process.env.NODE_ENV === 'production') {
+            console.error('\n[Deployment] Production Environment Checklist:');
+            console.error('1. Verify all required environment variables are set');
+            console.error('2. Ensure database connection is secure (SSL enabled)');
+            console.error('3. Check port availability and permissions');
+            console.error('4. Verify domain configuration');
+            console.error('5. Confirm SSL certificate setup (if applicable)');
           }
 
           throw error;
@@ -79,7 +75,28 @@ export async function validateDeploymentEnvironment(): Promise<void> {
             error: error instanceof Error ? error.message : String(error),
             validator: validator.constructor.name,
             environment: config.name,
-            nodeEnv: env.NODE_ENV
+            nodeEnv: env.NODE_ENV,
+            platform: isReplit ? 'Replit' : 'Windsurf/Local',
+            timestamp: new Date().toISOString()
+          }
+        );
+      }
+    }
+
+    // Final deployment readiness check
+    if (process.env.NODE_ENV === 'production') {
+      console.log('\n[Deployment] Performing final deployment checks...');
+      const deploymentReadiness = results.every(r => r.success && r.details?.deploymentReady);
+
+      if (!deploymentReadiness) {
+        throw new DeploymentValidationError(
+          'Environment is not fully configured for production deployment',
+          {
+            results: results.map(r => ({
+              validator: r.message,
+              ready: r.details?.deploymentReady || false
+            })),
+            tip: 'Review the deployment checklist and ensure all requirements are met'
           }
         );
       }

@@ -17,11 +17,12 @@ export class ServerValidator extends BaseValidator {
     this.log('Starting server configuration validation');
 
     // Validate host configuration
-    if (!this.config.server.allowedHosts.includes(process.env.HOST || '')) {
+    const currentHost = process.env.HOST || '0.0.0.0';
+    if (!this.config.server.allowedHosts.includes(currentHost)) {
       throw this.createError(
         `Invalid host configuration for ${this.config.name} environment`,
         {
-          current: process.env.HOST,
+          current: currentHost,
           allowed: this.config.server.allowedHosts,
           tip: `Host must be one of: ${this.config.server.allowedHosts.join(', ')}`
         }
@@ -45,6 +46,45 @@ export class ServerValidator extends BaseValidator {
       );
     }
 
+    // Deployment-specific validations
+    if (process.env.NODE_ENV === 'production') {
+      // Validate required deployment environment variables
+      const deploymentVars = [
+        'DATABASE_URL',
+        isReplit ? 'REPL_ID' : 'WINDSURF_ENV'
+      ];
+
+      const missingVars = deploymentVars.filter(v => !process.env[v]);
+      if (missingVars.length > 0) {
+        throw this.createError(
+          'Missing required deployment environment variables',
+          {
+            missing: missingVars,
+            environment: this.config.name,
+            nodeEnv: process.env.NODE_ENV,
+            tip: 'Ensure all required environment variables are set for production deployment'
+          }
+        );
+      }
+
+      // SSL configuration validation for production
+      if (!process.env.SSL_ENABLED && !isReplit) {
+        this.log('Warning: SSL is not enabled in production environment', {
+          tip: 'Consider enabling SSL for secure communication'
+        });
+      }
+
+      // Validate external access configuration
+      if (isReplit && !process.env.REPL_SLUG) {
+        throw this.createError(
+          'Missing Replit deployment configuration',
+          {
+            tip: 'REPL_SLUG is required for Replit deployments'
+          }
+        );
+      }
+    }
+
     // Check if port is available
     try {
       await this.checkPortAvailability(port);
@@ -54,38 +94,16 @@ export class ServerValidator extends BaseValidator {
         {
           port,
           error: error instanceof Error ? error.message : String(error),
+          environment: this.config.name,
+          nodeEnv: process.env.NODE_ENV,
           tips: [
             'Check if another process is using this port',
             'Try stopping other running services',
-            'Use a different port if needed'
+            'Use a different port if needed',
+            'Ensure proper permissions for port binding'
           ]
         }
       );
-    }
-
-    // Environment-specific validations
-    if (isReplit) {
-      // Validate Replit-specific requirements
-      if (!process.env.REPL_ID || !process.env.REPL_SLUG) {
-        throw this.createError(
-          'Missing required Replit environment variables',
-          {
-            missing: ['REPL_ID', 'REPL_SLUG'].filter(v => !process.env[v]),
-            tip: 'These variables should be automatically set by Replit'
-          }
-        );
-      }
-    } else {
-      // Local/Windsurf environment validations
-      if (!process.env.WINDSURF_ENV && process.env.NODE_ENV === 'production') {
-        this.log('Warning: Running in production mode without WINDSURF_ENV set');
-      }
-    }
-
-    // Additional SSL checks for production
-    if (process.env.NODE_ENV === 'production') {
-      // Add SSL configuration validation if needed
-      this.log('Production environment detected, SSL configuration is recommended');
     }
 
     this.log('Server validation passed');
@@ -95,8 +113,9 @@ export class ServerValidator extends BaseValidator {
       details: {
         environment: this.config.name,
         port,
-        host: process.env.HOST || this.config.server.allowedHosts[0],
-        ssl: process.env.NODE_ENV === 'production'
+        host: currentHost,
+        ssl: process.env.NODE_ENV === 'production' && (process.env.SSL_ENABLED === 'true' || isReplit),
+        deploymentReady: process.env.NODE_ENV === 'production'
       }
     };
   }
@@ -107,8 +126,10 @@ export class ServerValidator extends BaseValidator {
   private async checkPortAvailability(port: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const server = net.createServer();
+      let portCheckTimeout: NodeJS.Timeout;
 
       server.once('error', (err: NodeJS.ErrnoException) => {
+        clearTimeout(portCheckTimeout);
         if (err.code === 'EADDRINUSE') {
           reject(new Error(`Port ${port} is already in use`));
         } else {
@@ -117,10 +138,22 @@ export class ServerValidator extends BaseValidator {
       });
 
       server.once('listening', () => {
+        clearTimeout(portCheckTimeout);
         server.close(() => resolve());
       });
 
-      server.listen(port, '0.0.0.0');
+      // Add timeout for port check
+      portCheckTimeout = setTimeout(() => {
+        server.close();
+        reject(new Error(`Port check timed out after 5 seconds`));
+      }, 5000);
+
+      try {
+        server.listen(port, '0.0.0.0');
+      } catch (err) {
+        clearTimeout(portCheckTimeout);
+        reject(err);
+      }
     });
   }
 }

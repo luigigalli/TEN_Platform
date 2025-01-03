@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
+import { healthRoutes } from "./routes/health";
 import { db } from "@db";
 import { 
   users, 
@@ -67,6 +68,9 @@ function formatDate(date: Date | string | null): string | null {
 }
 
 export function registerRoutes(app: Express): Server {
+  // Register health check routes first
+  app.use('/api/health', healthRoutes);
+
   // Set up authentication first, before any other routes
   setupAuth(app);
 
@@ -415,6 +419,6 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Create HTTP server
-  const server = createServer(app);
-  return server;
+  const httpServer = createServer(app);
+  return httpServer;
 }
