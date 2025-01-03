@@ -10,13 +10,13 @@ import { EnvironmentConfig } from './types';
  */
 export const replitEnvironment: EnvironmentConfig = {
   name: 'replit',
-  requiredVars: ['REPL_ID', 'REPL_SLUG'],
+  requiredVars: ['REPL_ID', 'REPL_SLUG', 'REPLIT_DB_URL'],
   database: {
     urlPrefix: ['postgresql://', 'postgres://'],
     requireSSL: true,
     poolConfig: {
       maxConnections: 10,
-      idleTimeout: 60
+      idleTimeout: 20
     }
   },
   server: {
@@ -40,20 +40,27 @@ export const replitEnvironment: EnvironmentConfig = {
  */
 export const windsurfEnvironment: EnvironmentConfig = {
   name: 'windsurf',
-  requiredVars: ['WINDSURF_ENV'],
+  requiredVars: ['WINDSURF_ENV', 'WINDSURF_DB_URL'],
   database: {
     urlPrefix: ['postgresql://', 'postgres://'],
-    requireSSL: false,
+    requireSSL: true, // Required for Neon database compatibility
     poolConfig: {
-      maxConnections: 5,
-      idleTimeout: 30
+      maxConnections: 10,
+      idleTimeout: 20
     }
   },
   server: {
     defaultPort: 3000,
     allowedHosts: ['localhost', '127.0.0.1'],
     cors: {
-      origins: [new RegExp('^https?://.*\\.windsurf\\.dev$')]
+      origins: [/^https?:\/\/.*\.windsurf\.dev$/]
+    }
+  },
+  debug: {
+    verbose: true,
+    additionalInfo: {
+      platform: 'Windsurf',
+      documentation: 'https://windsurf.dev/docs'
     }
   }
 };
@@ -63,7 +70,7 @@ export const windsurfEnvironment: EnvironmentConfig = {
  */
 export const localEnvironment: EnvironmentConfig = {
   name: 'local',
-  requiredVars: [],
+  requiredVars: ['DATABASE_URL'],
   database: {
     urlPrefix: ['postgresql://', 'postgres://'],
     requireSSL: false,
@@ -76,11 +83,15 @@ export const localEnvironment: EnvironmentConfig = {
     defaultPort: 3000,
     allowedHosts: ['localhost', '127.0.0.1'],
     cors: {
-      origins: ['http://localhost:3000', 'http://127.0.0.1:3000']
+      origins: ['*']
     }
   },
   debug: {
-    verbose: true
+    verbose: true,
+    additionalInfo: {
+      platform: 'Local Development',
+      documentation: './docs'
+    }
   }
 };
 
