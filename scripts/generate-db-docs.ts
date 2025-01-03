@@ -1,60 +1,54 @@
-import { db } from '../db';
-import { sql } from 'drizzle-orm';
-import fs from 'fs/promises';
-import path from 'path';
+mermaid\nerDiagram\n';
 
-async function generateDatabaseDocs() {
-  console.log('Generating database documentation...');
-
-  try {
-    // Get all tables
-    const tables = await db.execute(sql`
-      SELECT 
-        table_name,
-        table_schema
-      FROM information_schema.tables 
-      WHERE table_schema = 'public'
-        AND table_type = 'BASE TABLE'
-    `);
-
-    let markdown = '# Database Schema Documentation\n\n';
-    markdown += 'This documentation is automatically generated from the database schema.\n\n';
-    markdown += `Last updated: ${new Date().toISOString()}\n\n`;
-
-    // For each table, get its columns
+    // Process each table
     for (const table of tables) {
-      const columns = await db.execute(sql`
+      // Get columns for current table
+      const columns = await db.execute<ColumnInfo[]>(sql`
         SELECT 
           column_name,
           data_type,
           is_nullable,
-          column_default
+          column_default,
+          col_description(
+            (SELECT oid FROM pg_class WHERE relname = ${table.table_name}),
+            ordinal_position
+          ) as description
         FROM information_schema.columns
         WHERE table_name = ${table.table_name}
           AND table_schema = 'public'
         ORDER BY ordinal_position
       `);
 
-      markdown += `## Table: ${table.table_name}\n\n`;
-      markdown += '| Column | Type | Nullable | Default |\n';
-      markdown += '|--------|------|----------|----------|\n';
+      // Get foreign keys
+      const foreignKeys = await db.execute<ForeignKeyInfo[]>(sql`
+        SELECT
+          kcu.column_name,
+          ccu.table_name AS foreign_table_name,
+          ccu.column_name AS foreign_column_name,
+          tc.constraint_name
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu
+          ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage AS ccu
+          ON ccu.constraint_name = tc.constraint_name
+          AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_name = ${table.table_name}
+          AND tc.table_schema = 'public'
+      `);
 
+      // Add table to ER diagram
+      markdown += `    ${table.table_name} {\n`;
       for (const column of columns) {
-        markdown += `| ${column.column_name} | ${column.data_type} | ${column.is_nullable} | ${column.column_default || 'NULL'} |\n`;
+        markdown += `        ${column.data_type} ${column.column_name}\n`;
       }
+      markdown += '    }\n\n';
 
-      markdown += '\n';
+      // Add relationships to ER diagram
+      for (const fk of foreignKeys) {
+        markdown += `    ${table.table_name} }|--|| ${fk.foreign_table_name} : references\n`;
+      }
     }
 
-    // Write to docs/database-schema.md
-    const docsPath = path.join(process.cwd(), 'docs', 'database-schema.md');
-    await fs.writeFile(docsPath, markdown);
-
-    console.log('Database documentation generated successfully!');
-  } catch (error) {
-    console.error('Error generating database documentation:', error);
-    process.exit(1);
-  }
-}
-
-generateDatabaseDocs();
+    markdown += '
