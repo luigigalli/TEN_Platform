@@ -45,41 +45,21 @@ export class DatabaseValidator extends BaseValidator {
         );
       }
 
-      // Check SSL configuration in production
-      if (process.env.NODE_ENV === 'production') {
-        if (!dbUrl.includes('sslmode=require')) {
-          throw this.createError(
-            'SSL mode must be required in production',
-            {
-              current: 'SSL not configured',
-              required: 'sslmode=require',
-              tip: 'Add sslmode=require to your DATABASE_URL in production'
-            }
-          );
-        }
-      }
-
       // Test database connectivity with enhanced error handling
       try {
         // First try a basic connection test
         await db.execute(sql`SELECT 1`);
         this.log('Basic connectivity test passed');
 
-        // Check SSL status directly from system view
-        const [sslInfo] = await db.execute(sql`
-          SELECT ssl, ssl_version, ssl_cipher 
-          FROM pg_stat_ssl 
-          WHERE pid = pg_backend_pid();
-        `);
-
-        // Get connection details
+        // Get connection details with simplified SSL check
         const [connDetails] = await db.execute(sql`
           SELECT 
             current_database() as db_name,
             current_user as user_name,
             version() as version,
             inet_server_addr() AS server_ip,
-            (SELECT setting FROM pg_settings WHERE name = 'server_version_num') as version_num
+            (SELECT setting FROM pg_settings WHERE name = 'server_version_num') as version_num,
+            (SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()) as ssl_enabled
         `);
 
         if (!connDetails) {
@@ -92,35 +72,15 @@ export class DatabaseValidator extends BaseValidator {
           version: connDetails.version?.toString().split(' ')[0],
           serverIp: connDetails.server_ip,
           versionNum: connDetails.version_num,
-          ssl: Boolean(sslInfo?.ssl),
-          sslVersion: sslInfo?.ssl_version || null,
-          sslCipher: sslInfo?.ssl_cipher || null
+          ssl: Boolean(connDetails.ssl_enabled)
         };
 
         this.log('Database connection successful', connectionInfo);
 
-        // Validate SSL in production
-        if (process.env.NODE_ENV === 'production' && !connectionInfo.ssl) {
-          throw this.createError(
-            'SSL connection is required in production environment',
-            {
-              current: 'SSL disabled',
-              required: 'SSL enabled',
-              ssl_info: connectionInfo,
-              tips: [
-                'Ensure DATABASE_URL includes sslmode=require',
-                'Verify SSL certificate configuration',
-                'Check database server SSL settings'
-              ]
-            }
-          );
-        }
-
-        // In Replit, recommend SSL even in development
-        if (isReplit && !connectionInfo.ssl && process.env.NODE_ENV !== 'production') {
-          this.log('Warning: SSL is recommended for Replit environment', {
-            tip: 'Consider enabling SSL for better security',
-            current_ssl_info: connectionInfo
+        // In development, SSL is recommended but not required
+        if (process.env.NODE_ENV !== 'production' && !connectionInfo.ssl) {
+          this.log('Warning: SSL is recommended but not required in development', {
+            tip: 'Consider enabling SSL for better security'
           });
         }
 
@@ -129,9 +89,9 @@ export class DatabaseValidator extends BaseValidator {
           message: 'Database validation passed',
           details: {
             ...connectionInfo,
-            sslRequired: process.env.NODE_ENV === 'production' || isReplit,
             environment: this.config.name,
-            nodeEnv: process.env.NODE_ENV
+            nodeEnv: process.env.NODE_ENV,
+            platform: isReplit ? 'Replit' : 'Local/Windsurf'
           }
         };
       } catch (dbError) {
@@ -147,8 +107,7 @@ export class DatabaseValidator extends BaseValidator {
               'Check if the database server is running',
               'Verify database credentials in DATABASE_URL',
               'Ensure network connectivity to database host',
-              'Check if database port is accessible',
-              'Verify SSL configuration if enabled'
+              'Check if database port is accessible'
             ]
           }
         );

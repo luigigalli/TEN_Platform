@@ -1,0 +1,21 @@
+#!/usr/bin/env tsx
+
+import { validateDeploymentEnvironment } from '../server/config/deployment-validator';
+import chalk from 'chalk';
+
+async function main() {
+  console.log(chalk.blue('\nEnvironment Validation Tool'));
+  console.log(chalk.blue('========================\n'));
+
+  try {
+    await validateDeploymentEnvironment();
+    console.log(chalk.green('\n✓ Environment validation completed successfully\n'));
+    process.exit(0);
+  } catch (error) {
+    console.error(chalk.red('\n✗ Environment validation failed:'));
+    console.error(chalk.red(error instanceof Error ? error.message : String(error)));
+    process.exit(1);
+  }
+}
+
+main();
