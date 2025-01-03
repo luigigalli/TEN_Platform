@@ -4,10 +4,15 @@
 Format: WF-YYYYMMDD-XXX (WF: Workflow, XXX: Sequential number)
 
 ### Current Changes
-- WF-20250103-001: Validation Message Improvements
-  - Status: Pending Review
-  - Files: validation_messages.md
-  - Related PR: TBD
+- WF-20250103-001: Environment-Aware System Updates and Validation Messages
+  - Status: Ready for Review
+  - Files: 
+    - validation_messages.md
+    - db/schema.ts
+    - scripts/db-sync.ts
+    - scripts/post-pull.sh
+    - server/middleware/auth-middleware.ts
+  - Related PR: To be created
 
 ## Guidelines
 1. Create a new temp file for each significant change
