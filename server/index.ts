@@ -7,6 +7,9 @@ import { handleViteMiddleware, handleStaticFiles } from "./middleware/vite-handl
 import { type Server } from "http";
 import { env, isReplit, getExternalUrl } from "./config/environment";
 import { validateDeploymentEnvironment } from "./config/deployment-validator";
+import { setupSwaggerPaths } from "./config/swagger";
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from "./config/swagger";
 
 // Type definition for server instance
 interface ServerInstance {
@@ -61,6 +64,15 @@ process.on('SIGINT', async () => {
     }
 
     const app = express();
+
+    // Setup Swagger documentation
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+      explorer: true,
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: "TEN API Documentation"
+    }));
+    setupSwaggerPaths(app);
+
     const { server } = await initializeServer(app);
     serverInstance = { app, server };
 
@@ -101,10 +113,7 @@ process.on('SIGINT', async () => {
     console.log('- External Port:', isReplit ? env.EXTERNAL_PORT : port);
     console.log('- Host:', env.HOST);
     console.log('- URL:', env.REPL_URL || getExternalUrl(port));
-    if (isReplit) {
-      console.log('- Client Port:', env.CLIENT_PORT);
-      console.log('- External Client Port:', env.EXTERNAL_CLIENT_PORT);
-    }
+    console.log('- API Documentation:', `/api-docs`);
 
   } catch (error) {
     console.error('Failed to start server:', error);

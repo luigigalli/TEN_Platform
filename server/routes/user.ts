@@ -17,19 +17,112 @@ const validCredentials = {
   password: 'password123'
 };
 
-// Get current user
+/**
+ * @swagger
+ * /api/user:
+ *   get:
+ *     summary: Get current authenticated user
+ *     description: Returns the currently authenticated user's information or null if not authenticated
+ *     tags: [User]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: User information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - $ref: '#/components/schemas/User'
+ *                 - type: 'null'
+ *             examples:
+ *               authenticated:
+ *                 value:
+ *                   id: 1
+ *                   name: "Test User"
+ *                   email: "test@example.com"
+ *                   created_at: "2025-01-03T12:00:00.000Z"
+ *                   role: "user"
+ *               unauthenticated:
+ *                 value: null
+ */
 userRoutes.get('/', (req, res) => {
   // Check for session cookie
   const hasSession = req.cookies.session === 'mock-session-id';
-  
+
   if (hasSession) {
     return res.json(mockUser);
   }
-  
+
   res.json(null);
 });
 
-// Login
+/**
+ * @swagger
+ * /api/user/login:
+ *   post:
+ *     summary: Authenticate user
+ *     description: Log in a user with email and password
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *           example:
+ *             email: "test@example.com"
+ *             password: "password123"
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *             example:
+ *               ok: true
+ *               message: "Login successful"
+ *               user:
+ *                 id: 1
+ *                 name: "Test User"
+ *                 email: "test@example.com"
+ *       400:
+ *         description: Invalid input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               ok: false
+ *               message: "Email and password are required"
+ *       401:
+ *         description: Authentication failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               ok: false
+ *               message: "Invalid email or password"
+ */
 userRoutes.post('/login', async (req, res, next) => {
   try {
     console.log('\n[BACKEND] Login attempt at /api/user/login');
@@ -87,7 +180,63 @@ userRoutes.post('/login', async (req, res, next) => {
   }
 });
 
-// Register
+/**
+ * @swagger
+ * /api/user/register:
+ *   post:
+ *     summary: Register new user
+ *     description: Create a new user account
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *           example:
+ *             email: "newuser@example.com"
+ *             password: "securepassword123"
+ *     responses:
+ *       201:
+ *         description: Registration successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *             example:
+ *               ok: true
+ *               message: "Registration successful"
+ *               user:
+ *                 id: 1
+ *                 name: "New User"
+ *                 email: "newuser@example.com"
+ *       400:
+ *         description: Invalid input or email already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               ok: false
+ *               message: "Email already registered"
+ */
 userRoutes.post('/register', (req, res) => {
   const { email, password } = req.body;
 
@@ -111,11 +260,35 @@ userRoutes.post('/register', (req, res) => {
   });
 });
 
-// Logout
+/**
+ * @swagger
+ * /api/user/logout:
+ *   post:
+ *     summary: Logout user
+ *     description: Logout the current user and clear their session
+ *     tags: [Auth]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *             example:
+ *               ok: true
+ *               message: "Logout successful"
+ */
 userRoutes.post('/logout', (req, res) => {
   // Clear the session cookie
   res.clearCookie('session');
-  
+
   res.json({
     ok: true,
     message: 'Logout successful'

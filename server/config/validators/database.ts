@@ -77,10 +77,29 @@ export class DatabaseValidator extends BaseValidator {
 
         this.log('Database connection successful', connectionInfo);
 
-        // In development, SSL is recommended but not required
-        if (process.env.NODE_ENV !== 'production' && !connectionInfo.ssl) {
+        // Check SSL based on environment
+        if (process.env.NODE_ENV === 'production' && !connectionInfo.ssl && this.config.database.requireSSL) {
+          throw this.createError('SSL connection required in production', {
+            tip: 'Enable SSL for database connections in production environment'
+          });
+        } else if (!connectionInfo.ssl) {
           this.log('Warning: SSL is recommended but not required in development', {
             tip: 'Consider enabling SSL for better security'
+          });
+        }
+
+        // Validate pool configuration if specified
+        const poolConfig = this.config.database.poolConfig;
+        if (poolConfig) {
+          const currentConnections = await db.execute(sql`
+            SELECT count(*) as conn_count 
+            FROM pg_stat_activity 
+            WHERE datname = current_database()
+          `);
+
+          this.log('Connection pool status', {
+            currentConnections: currentConnections[0]?.conn_count,
+            maxConnections: poolConfig.maxConnections
           });
         }
 
