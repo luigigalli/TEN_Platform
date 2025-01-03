@@ -18,7 +18,6 @@ function getDatabaseUrls() {
     process.exit(1);
   }
 
-  // Fixed sync direction logic
   const fromReplit = process.argv.includes('--from-replit');
   const fromWindsurf = process.argv.includes('--from-windsurf');
 
@@ -69,28 +68,34 @@ async function syncTable(sourceDb: any, targetDb: any, tableName: string, attemp
     await targetDb.execute(sql`BEGIN`);
 
     try {
-      // Clear target table
+      // Clear target table with CASCADE to handle foreign key constraints
       console.log('- Clearing target table...');
       await targetDb.execute(sql`TRUNCATE TABLE ${sql.identifier(tableName)} CASCADE`);
       console.log('- Cleared target table');
 
-      // Insert data in smaller batches for better error handling
-      const batchSize = 25; // Reduced batch size for better handling
+      // Insert data in smaller batches
+      const batchSize = 10;
       for (let i = 0; i < sourceData.length; i += batchSize) {
         const batch = sourceData.slice(i, i + batchSize);
 
-        // Filter out non-column fields like 'members' that come from relations
+        // Filter out relation fields and handle null values
         const columns = Object.keys(batch[0])
           .filter(col => {
-            // Skip relation fields that aren't actual columns
-            if (tableName === 'trips' && ['members'].includes(col)) return false;
-            return col !== undefined && batch[0][col] !== undefined;
+            if (col === 'members' || col === 'owner' || col === 'creator') return false;
+            return col !== undefined;
           });
 
+        // Process values and handle nulls appropriately
         const values = batch.map(row => 
           `(${columns.map(col => {
             const val = row[col];
-            if (val === null) return 'NULL';
+            if (val === null) {
+              // Special handling for provider_id in services table
+              if (tableName === 'services' && col === 'provider_id') {
+                return '1'; // Default to first user if provider_id is null
+              }
+              return 'NULL';
+            }
             if (typeof val === 'object') return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
             if (typeof val === 'boolean') return val ? 'true' : 'false';
             return typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : val;
@@ -123,12 +128,9 @@ async function syncTable(sourceDb: any, targetDb: any, tableName: string, attemp
     console.error(`\nError syncing table ${tableName} (attempt ${attempt}/${maxAttempts}):`, error);
 
     if (error instanceof Error && attempt < maxAttempts) {
-      if (error.message.includes('foreign key constraint') || 
-          error.message.includes('violates not-null constraint')) {
-        console.log(`\nRetrying table ${tableName} in ${retryDelay/1000} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-        return syncTable(sourceDb, targetDb, tableName, attempt + 1);
-      }
+      console.log(`\nRetrying table ${tableName} in ${retryDelay/1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      return syncTable(sourceDb, targetDb, tableName, attempt + 1);
     }
 
     return false;
@@ -137,32 +139,36 @@ async function syncTable(sourceDb: any, targetDb: any, tableName: string, attemp
 
 async function syncData(sourceDb: any, targetDb: any) {
   // Define table order based on dependencies
-  // Updated order to respect foreign key constraints
-  const tableOrder = [
-    'users',            // No dependencies
-    'trips',           // Depends on users
-    'trip_members',    // Depends on users and trips
-    'trip_activities', // Depends on users and trips
-    'services',        // Depends on users
-    'bookings',        // Depends on users and services
-    'posts',          // Depends on users and trips
-    'messages'        // Depends on users
+  const tableGroups = [
+    ['users'],           // No dependencies
+    ['services'],        // Depends on users
+    ['trips'],           // Depends on users
+    ['trip_members'],    // Depends on users and trips
+    ['trip_activities'], // Depends on users and trips
+    ['posts'],          // Depends on users and trips
+    ['bookings'],       // Depends on users and services
+    ['messages']        // Depends on users
   ];
 
-  console.log('\nSyncing tables in order:', tableOrder);
+  console.log('\nSyncing tables in groups:', tableGroups);
 
   let failedTables: string[] = [];
 
-  for (const tableName of tableOrder) {
-    console.log(`\nSyncing table: ${tableName}`);
-    const success = await syncTable(sourceDb, targetDb, tableName);
-    if (!success) {
-      console.error(`Failed to sync table: ${tableName}`);
-      failedTables.push(tableName);
-      // Break the sync if a parent table fails
-      if (tableName === 'users' || tableName === 'trips') {
-        console.error(`Critical table ${tableName} failed to sync. Stopping process.`);
-        break;
+  for (const tables of tableGroups) {
+    console.log(`\nSyncing table group: ${tables.join(', ')}`);
+
+    for (const tableName of tables) {
+      console.log(`\nSyncing table: ${tableName}`);
+      const success = await syncTable(sourceDb, targetDb, tableName);
+      if (!success) {
+        console.error(`Failed to sync table: ${tableName}`);
+        failedTables.push(tableName);
+
+        // Break the sync if a critical table fails
+        if (['users', 'trips', 'services'].includes(tableName)) {
+          console.error(`Critical table ${tableName} failed to sync. Stopping process.`);
+          return false;
+        }
       }
     }
   }

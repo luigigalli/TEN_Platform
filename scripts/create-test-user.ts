@@ -25,46 +25,47 @@ async function createTestUser() {
     max: 1,
     ssl: { rejectUnauthorized: false }
   });
-  
-  const db = drizzle(sql);
 
-  const testUser = {
-    username: "test_sync_user",
-    email: "test_sync@example.com",
-    password: await hashPassword("test_password"),
-    firstName: "Test",
-    lastName: "User",
-    role: "user",
-    profileCompleted: false
-  };
+  const db = drizzle(sql);
 
   try {
     // Check if test user already exists
     const [existingUser] = await db
       .select()
       .from(users)
-      .where(eq(users.username, testUser.username))
+      .where(eq(users.username, "test_sync_user"))
       .limit(1);
 
     if (existingUser) {
       console.log('Test user already exists:', {
         id: existingUser.id,
         username: existingUser.username,
-        email: existingUser.email
+        email: existingUser.email,
+        firstName: existingUser.firstName
       });
       return existingUser;
     }
 
-    // Create new test user
+    // Create new test user with proper field mapping
     const [newUser] = await db
       .insert(users)
-      .values(testUser)
+      .values({
+        username: "test_sync_user",
+        email: "test_sync@example.com",
+        password: await hashPassword("test_password"),
+        firstName: "Test",  // Using proper camelCase as defined in schema
+        lastName: "User",   // Using proper camelCase as defined in schema
+        role: "user",
+        profileCompleted: false,
+        languages: []
+      })
       .returning();
 
     console.log('Created new test user:', {
       id: newUser.id,
       username: newUser.username,
-      email: newUser.email
+      email: newUser.email,
+      firstName: newUser.firstName
     });
 
     return newUser;
