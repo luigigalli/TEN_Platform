@@ -4,6 +4,8 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { env, isReplit } from "../config/environment";
 import { userRoutes } from "../routes/user";
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from '../config/swagger';
 
 export async function initializeServer(app: express.Application) {
   // Create HTTP server
@@ -25,12 +27,21 @@ export async function initializeServer(app: express.Application) {
 
   app.use(cors(corsOptions));
 
+  // API Documentation setup
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+
   // Request logging middleware
   app.use((req: Request, _res: Response, next: NextFunction) => {
-    console.log(`\n[BACKEND] ${req.method} ${req.url}`);
-    console.log('[BACKEND] Headers:', JSON.stringify(req.headers, null, 2));
-    if (req.body && Object.keys(req.body).length > 0) {
-      console.log('[BACKEND] Body:', JSON.stringify(req.body, null, 2));
+    if (!req.path.includes('api-docs')) { // Don't log documentation requests
+      console.log(`\n[BACKEND] ${req.method} ${req.url}`);
+      console.log('[BACKEND] Headers:', JSON.stringify(req.headers, null, 2));
+      if (req.body && Object.keys(req.body).length > 0) {
+        console.log('[BACKEND] Body:', JSON.stringify(req.body, null, 2));
+      }
     }
     next();
   });
@@ -55,6 +66,7 @@ export async function initializeServer(app: express.Application) {
   await new Promise<void>((resolve) => {
     server.listen(port, host, () => {
       console.log(`[BACKEND] Server running at http://${host}:${port}`);
+      console.log(`[BACKEND] API Documentation available at http://${host}:${port}/api-docs`);
       resolve();
     });
   });

@@ -6,6 +6,7 @@ import { initializeServer } from "./middleware/server-init";
 import { handleViteMiddleware, handleStaticFiles } from "./middleware/vite-handler";
 import { type Server } from "http";
 import { env, isReplit, getExternalUrl } from "./config/environment";
+import { validateDeploymentEnvironment } from "./config/deployment-validator";
 
 // Type definition for server instance
 type ServerInstance = {
@@ -48,9 +49,12 @@ process.on('SIGINT', async () => {
     // Ensure cleanup before starting
     await cleanup();
 
+    // Validate deployment environment before proceeding
+    await validateDeploymentEnvironment();
+
     console.log('[config] Environment variables loaded successfully');
     console.log('[config] Platform:', isReplit ? 'Replit' : 'Local');
-    
+
     if (isReplit) {
       console.log('[config] Replit URL:', env.REPL_URL);
       console.log('[config] Replit Dev URL:', getExternalUrl(env.EXTERNAL_PORT));
