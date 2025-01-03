@@ -6,35 +6,42 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Get source and target database URLs based on environment
 function getDatabaseUrls() {
-  // Always use DATABASE_URL for Replit environment
   const replitUrl = process.env.DATABASE_URL;
   const windsurfUrl = process.env.WINDSURF_DB_URL;
 
-  // Check if we're syncing from Replit to Windsurf
+  if (!replitUrl || !windsurfUrl) {
+    console.error('\nError: Both DATABASE_URL and WINDSURF_DB_URL must be set for database sync');
+    console.error('\nPlease verify:');
+    console.error('1. Check team-updates/credentials.md for latest credentials');
+    console.error('2. Ensure both database URLs are set correctly');
+    process.exit(1);
+  }
+
+  // Check sync direction from command line args
+  const fromWindsurf = process.argv.includes('--from-windsurf');
   const fromReplit = process.argv.includes('--from-replit');
 
+  if (fromReplit && fromWindsurf) {
+    console.error('\nError: Cannot specify both --from-replit and --from-windsurf');
+    process.exit(1);
+  }
+
+  console.log(`\nSync direction: ${fromReplit ? 'Replit → Windsurf' : 'Windsurf → Replit'}`);
+
   if (fromReplit) {
-    if (!replitUrl || !windsurfUrl) {
-      console.error('\nError: Both DATABASE_URL and WINDSURF_DB_URL must be set for Replit to Windsurf sync');
-      console.error('\nPlease verify:');
-      console.error('1. DATABASE_URL is properly set in Replit');
-      console.error('2. WINDSURF_DB_URL is set with correct credentials');
-      console.error('3. Both URLs should start with postgresql://');
-      process.exit(1);
-    }
-    return { source: replitUrl, target: windsurfUrl, mode: 'replit-to-windsurf' };
+    return {
+      source: replitUrl,
+      target: windsurfUrl,
+      mode: 'replit-to-windsurf'
+    };
   } else {
     // Default to Windsurf to Replit sync
-    if (!replitUrl || !windsurfUrl) {
-      console.error('\nError: Both DATABASE_URL and WINDSURF_DB_URL must be set for Windsurf to Replit sync');
-      console.error('\nPlease verify:');
-      console.error('1. Check team-updates/credentials.md for latest credentials');
-      console.error('2. Ensure both database URLs include passwords');
-      process.exit(1);
-    }
-    return { source: windsurfUrl, target: replitUrl, mode: 'windsurf-to-replit' };
+    return {
+      source: windsurfUrl,
+      target: replitUrl,
+      mode: 'windsurf-to-replit'
+    };
   }
 }
 
@@ -49,13 +56,13 @@ function validateDatabaseUrl(url: string, name: string) {
 
 function createDbClient(url: string, name: string) {
   validateDatabaseUrl(url, name);
-  console.log(`Connecting to ${name} database:`, url.replace(/:[^:]*@/, ':***@')); // Hide password
+  console.log(`Connecting to ${name} database:`, url.replace(/:[^:]*@/, ':***@'));
   return postgres(url, {
     max: 1,
     idle_timeout: 120,
     connect_timeout: 120,
     ssl: {
-      rejectUnauthorized: false // Required for both Replit and Windsurf PostgreSQL
+      rejectUnauthorized: false
     },
     connection: {
       statement_timeout: 120000,
@@ -73,7 +80,9 @@ async function testConnection(db: any, name: string) {
         current_database(), 
         current_user, 
         inet_server_addr() AS server_ip,
-        current_setting('ssl') as ssl_enabled
+        current_setting('ssl') as ssl_enabled,
+        (SELECT COUNT(*) FROM users) as user_count,
+        (SELECT COUNT(*) FROM trips) as trip_count
     `);
 
     console.log(`\n${name} Database Connection Info:`);
@@ -82,15 +91,16 @@ async function testConnection(db: any, name: string) {
     console.log('- User:', testResult[0].current_user);
     console.log('- Server IP:', testResult[0].server_ip);
     console.log('- SSL Enabled:', testResult[0].ssl_enabled);
+    console.log('- User Count:', testResult[0].user_count);
+    console.log('- Trip Count:', testResult[0].trip_count);
+    return true;
   } catch (error) {
-    console.error(`\nError connecting to ${name} database:`);
-    console.error(error);
-    process.exit(1);
+    console.error(`\nError connecting to ${name} database:`, error);
+    return false;
   }
 }
 
 async function syncData(sourceDb: any, targetDb: any) {
-  // Define the table names explicitly based on our schema
   const tableNames = [
     'users',
     'services',
@@ -99,8 +109,7 @@ async function syncData(sourceDb: any, targetDb: any) {
     'posts',
     'messages',
     'trip_members',
-    'trip_activities',
-    'expert_messages'
+    'trip_activities'
   ];
 
   console.log('\nSyncing tables:', tableNames);
@@ -109,12 +118,17 @@ async function syncData(sourceDb: any, targetDb: any) {
     console.log(`\nSyncing table: ${tableName}`);
 
     try {
-      // Get source data
+      // Get source data with additional logging
+      console.log(`- Fetching data from source table ${tableName}...`);
       const sourceData = await sourceDb.execute(sql`SELECT * FROM ${sql.identifier(tableName)}`);
       console.log(`- Found ${sourceData.length} records in source`);
 
       if (sourceData.length > 0) {
+        // Show sample of data being synced (first record)
+        console.log('- Sample record:', JSON.stringify(sourceData[0], null, 2));
+
         // Clear target table
+        console.log('- Clearing target table...');
         await targetDb.execute(sql`TRUNCATE TABLE ${sql.identifier(tableName)} CASCADE`);
         console.log('- Cleared target table');
 
@@ -146,6 +160,13 @@ async function syncData(sourceDb: any, targetDb: any) {
       }
     } catch (error) {
       console.error(`\nError syncing table ${tableName}:`, error);
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        });
+      }
       // Continue with next table instead of exiting
       continue;
     }
@@ -164,34 +185,20 @@ async function sync() {
 
   try {
     // Test both connections
-    await testConnection(sourceDb, 'Source');
-    await testConnection(targetDb, 'Target');
+    const sourceOk = await testConnection(sourceDb, 'Source');
+    const targetOk = await testConnection(targetDb, 'Target');
+
+    if (!sourceOk || !targetOk) {
+      console.error('\nDatabase connection test failed');
+      process.exit(1);
+    }
 
     // Sync data
     await syncData(sourceDb, targetDb);
 
     console.log(`\nSync completed successfully! (${mode})`);
   } catch (error) {
-    console.error('\nDatabase sync failed:');
-    console.error('Error details:', {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : String(error),
-      code: (error as any)?.code,
-      errno: (error as any)?.errno,
-      address: (error as any)?.address,
-      port: (error as any)?.port
-    });
-
-    if ((error as any)?.code === 'CONNECT_TIMEOUT') {
-      console.error('\nConnection timeout - possible causes:');
-      console.error('1. Database server is not reachable');
-      console.error('2. Firewall blocking connection');
-      console.error('3. Incorrect database URL or credentials');
-      console.error('\nPlease verify:');
-      console.error('- Database URLs are correctly set');
-      console.error('- PostgreSQL services are running');
-      console.error('- Network/firewall allows connections');
-    }
+    console.error('\nDatabase sync failed:', error);
     process.exit(1);
   } finally {
     await Promise.all([sourceClient.end(), targetClient.end()]);

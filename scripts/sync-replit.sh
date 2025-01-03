@@ -15,7 +15,7 @@ log() {
 run_command() {
     local command="$1"
     local message="$2"
-    
+
     log "$message" "$YELLOW"
     if eval "$command"; then
         log "✓ Success: $message" "$GREEN"
@@ -28,18 +28,18 @@ run_command() {
 
 # Main sync function
 main() {
-    log "Starting Replit session sync..." "$YELLOW"
-    log "This will pull Replit changes to your local database" "$YELLOW"
-    
-    # Pull changes from Replit
-    if ! run_command "npm run db:pull" "Pulling changes from Replit..."; then
-        log "Error pulling from Replit. Sync aborted." "$RED"
+    log "Starting Windsurf to Replit sync..." "$YELLOW"
+    log "This will pull Windsurf database changes to Replit" "$YELLOW"
+
+    # Pull changes from Windsurf
+    if ! run_command "npm run db:pull -- --from-windsurf" "Pulling changes from Windsurf..."; then
+        log "Error pulling from Windsurf. Sync aborted." "$RED"
         exit 1
     fi
-    
+
     log "Synchronization completed successfully!" "$GREEN"
-    log "Replit changes have been pulled to your local database." "$GREEN"
-    log "You can now safely start development in Windsurf." "$GREEN"
+    log "Windsurf changes have been pulled to Replit database." "$GREEN"
+    log "You can now safely proceed with Replit development." "$GREEN"
 }
 
 # Run the main function
