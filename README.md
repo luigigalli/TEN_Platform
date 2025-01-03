@@ -1,18 +1,5 @@
-# TEN_2_Replit
+# Sync from Windsurf to Replit
+npm run sync:windsurf
 
-This repository contains the codebase for the TEN_2 project.
-
-## Project Structure
-- `/client`: Frontend application
-- `/server`: Backend server
-- `/db`: Database configuration and schemas
-
-## Development
-To start development:
-1. Install dependencies: `npm install`
-2. Run development server: `npm run dev`
-
-## Contributors
-- Luigi Galli (@luigigalli)
-
-Last updated: December 29, 2023
+# Sync from Replit to Windsurf
+npm run sync:replit
