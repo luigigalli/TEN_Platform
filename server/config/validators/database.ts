@@ -65,13 +65,11 @@ export class DatabaseValidator extends BaseValidator {
         await db.execute(sql`SELECT 1`);
         this.log('Basic connectivity test passed');
 
-        // Check SSL status using pg_stat_ssl view
-        const [sslStatus] = await db.execute(sql`
-          SELECT
-            ssl,
-            ssl_cipher
-          FROM pg_stat_ssl
-          WHERE pid = pg_backend_pid()
+        // Check SSL status directly from system view
+        const [sslInfo] = await db.execute(sql`
+          SELECT ssl, ssl_version, ssl_cipher 
+          FROM pg_stat_ssl 
+          WHERE pid = pg_backend_pid();
         `);
 
         // Get connection details
@@ -94,8 +92,9 @@ export class DatabaseValidator extends BaseValidator {
           version: connDetails.version?.toString().split(' ')[0],
           serverIp: connDetails.server_ip,
           versionNum: connDetails.version_num,
-          ssl: sslStatus?.ssl || false,
-          sslCipher: sslStatus?.ssl_cipher || ''
+          ssl: Boolean(sslInfo?.ssl),
+          sslVersion: sslInfo?.ssl_version || null,
+          sslCipher: sslInfo?.ssl_cipher || null
         };
 
         this.log('Database connection successful', connectionInfo);
@@ -107,6 +106,7 @@ export class DatabaseValidator extends BaseValidator {
             {
               current: 'SSL disabled',
               required: 'SSL enabled',
+              ssl_info: connectionInfo,
               tips: [
                 'Ensure DATABASE_URL includes sslmode=require',
                 'Verify SSL certificate configuration',
@@ -119,7 +119,8 @@ export class DatabaseValidator extends BaseValidator {
         // In Replit, recommend SSL even in development
         if (isReplit && !connectionInfo.ssl && process.env.NODE_ENV !== 'production') {
           this.log('Warning: SSL is recommended for Replit environment', {
-            tip: 'Consider enabling SSL for better security'
+            tip: 'Consider enabling SSL for better security',
+            current_ssl_info: connectionInfo
           });
         }
 
