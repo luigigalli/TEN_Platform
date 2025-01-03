@@ -1,4 +1,14 @@
-import { validateDeploymentEnvironment } from './config/deployment-validator';
-
-// In your server initialization
-await validateDeploymentEnvironment();
+{
+  name: 'windsurf',
+  defaultPort: 3000,
+  host: 'localhost',
+  requiredVars: ['WINDSURF_ENV'],
+  database: {
+    urlPrefix: 'postgresql://',
+    requireSSL: false,
+    poolConfig: {
+      maxConnections: 5,
+      idleTimeout: 30
+    }
+  }
+}

@@ -43,7 +43,7 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-// Start the server with proper error handling
+// Start the server with proper error handling and validation
 (async () => {
   try {
     // Ensure cleanup before starting
