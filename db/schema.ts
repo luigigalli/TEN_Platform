@@ -17,7 +17,7 @@ export const users = pgTable("users", {
   username: text("username").unique(),  // Generated from firstName
   password: text("password").notNull(),
   email: text("email").unique().notNull(),
-  firstName: text("first_name").notNull(),
+  firstName: text("first_name"),        // Remove .notNull() constraint
   lastName: text("last_name"),
   role: text("role").notNull().default("user"),
   bio: text("bio"),
