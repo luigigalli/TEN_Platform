@@ -15,7 +15,7 @@ log() {
 run_command() {
     local command="$1"
     local message="$2"
-    
+
     log "$message" "$YELLOW"
     if eval "$command"; then
         log "✓ Success: $message" "$GREEN"
@@ -28,18 +28,18 @@ run_command() {
 
 # Main sync function
 main() {
-    log "Starting Windsurf session sync..." "$YELLOW"
-    log "This will push your local changes to Replit" "$YELLOW"
-    
-    # Push local changes to Replit
-    if ! run_command "npm run db:push-replit" "Pushing local changes to Replit..."; then
-        log "Error pushing to Replit. Sync aborted." "$RED"
+    log "Starting Replit to Windsurf sync..." "$YELLOW"
+    log "This will push Replit changes to Windsurf" "$YELLOW"
+
+    # Push Replit changes to Windsurf using the --from-replit flag
+    if ! run_command "tsx scripts/db-sync.ts --from-replit" "Pushing Replit changes to Windsurf..."; then
+        log "Error pushing to Windsurf. Sync aborted." "$RED"
         exit 1
     fi
-    
+
     log "Synchronization completed successfully!" "$GREEN"
-    log "Your local changes have been pushed to Replit." "$GREEN"
-    log "You can now safely switch to Replit environment." "$GREEN"
+    log "Replit changes have been pushed to Windsurf." "$GREEN"
+    log "You can now safely switch to Windsurf environment." "$GREEN"
 }
 
 # Run the main function

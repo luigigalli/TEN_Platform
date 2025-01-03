@@ -18,25 +18,29 @@ function getDatabaseUrls() {
     process.exit(1);
   }
 
-  // Check sync direction from command line args
-  const fromWindsurf = process.argv.includes('--from-windsurf');
+  // Fixed the sync direction logic
   const fromReplit = process.argv.includes('--from-replit');
+  const fromWindsurf = process.argv.includes('--from-windsurf');
+
+  if (!fromReplit && !fromWindsurf) {
+    console.error('\nError: Must specify either --from-replit or --from-windsurf');
+    process.exit(1);
+  }
 
   if (fromReplit && fromWindsurf) {
     console.error('\nError: Cannot specify both --from-replit and --from-windsurf');
     process.exit(1);
   }
 
-  console.log(`\nSync direction: ${fromReplit ? 'Replit → Windsurf' : 'Windsurf → Replit'}`);
-
   if (fromReplit) {
+    console.log(`\nSync direction: Replit → Windsurf`);
     return {
       source: replitUrl,
       target: windsurfUrl,
       mode: 'replit-to-windsurf'
     };
   } else {
-    // Default to Windsurf to Replit sync
+    console.log(`\nSync direction: Windsurf → Replit`);
     return {
       source: windsurfUrl,
       target: replitUrl,
@@ -101,20 +105,21 @@ async function testConnection(db: any, name: string) {
 }
 
 async function syncData(sourceDb: any, targetDb: any) {
-  const tableNames = [
-    'users',
-    'services',
-    'bookings',
-    'trips',
-    'posts',
-    'messages',
-    'trip_members',
-    'trip_activities'
+  // Define table order based on dependencies
+  const tableOrder = [
+    'users',        // No dependencies
+    'trips',        // Depends on users
+    'services',     // Depends on users
+    'bookings',     // Depends on users and services
+    'posts',        // Depends on users and trips
+    'messages',     // Depends on users
+    'trip_members', // Depends on users and trips
+    'trip_activities' // Depends on users and trips
   ];
 
-  console.log('\nSyncing tables:', tableNames);
+  console.log('\nSyncing tables in order:', tableOrder);
 
-  for (const tableName of tableNames) {
+  for (const tableName of tableOrder) {
     console.log(`\nSyncing table: ${tableName}`);
 
     try {
