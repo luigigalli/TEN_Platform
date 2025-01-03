@@ -20,7 +20,7 @@ const configSchema = z.object({
     corsOrigins: z.array(z.union([z.string(), z.instanceof(RegExp)])),
   }),
   database: z.object({
-    url: z.string().optional().default("postgresql://postgres:postgres@localhost:5432/postgres")
+    url: z.string().min(1, "Database URL is required")
   })
 }).strict();
 
@@ -44,11 +44,8 @@ function buildConfig(): Config {
         corsOrigins: isDevelopment 
           ? ['*']
           : [
-              // Allow Replit domains in production
               ...(isReplit && replitDevDomain ? [replitDevDomain] : []),
-              // Allow Windsurf domains
               ...(isWindsurf ? [new RegExp('^https?://.*\\.windsurf\\.dev$')] : []),
-              // Development URLs - always use consistent ports
               'http://localhost:3000',
               'http://localhost:3001',
               'http://127.0.0.1:3000',
@@ -56,7 +53,7 @@ function buildConfig(): Config {
             ]
       },
       database: {
-        url: env.REPLIT_DB_URL
+        url: process.env.DATABASE_URL || ''
       }
     };
 
