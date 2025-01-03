@@ -110,10 +110,8 @@ export async function performHealthCheck(): Promise<boolean> {
   }
 }
 
-// In your server initialization code
-async function initializeServer() {
+// Export for use in server initialization
+export async function initializeServer() {
     await validateDeploymentEnvironment();
-    // ...rest of your server initialization code...
+    // Server initialization continues...
 }
-
-initializeServer();
