@@ -18,17 +18,17 @@ print_warning() {
 sync_branch() {
     current_branch=$(git rev-parse --abbrev-ref HEAD)
     print_status "Current branch: $current_branch"
-    
+
     # Stash any changes
     if [[ -n $(git status -s) ]]; then
         print_status "Stashing changes..."
         git stash
     fi
-    
+
     # Pull latest changes
     print_status "Pulling latest changes..."
     git pull origin $current_branch
-    
+
     # Pop stashed changes if any
     if [[ -n $(git stash list) ]]; then
         print_status "Restoring your changes..."
@@ -43,8 +43,8 @@ create_feature() {
         echo "Usage: ./git-sync.sh feature <feature-name>"
         exit 1
     fi
-    
-    branch_name="feature/$1"
+
+    branch_name="feat/$1"
     print_status "Creating new feature branch: $branch_name"
     git checkout -b $branch_name
     git push -u origin $branch_name
@@ -57,7 +57,7 @@ commit_changes() {
         echo "Usage: ./git-sync.sh commit \"your commit message\""
         exit 1
     fi
-    
+
     print_status "Committing changes..."
     git add .
     git commit -m "$1"
