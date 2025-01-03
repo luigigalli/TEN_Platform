@@ -12,15 +12,20 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+// Parse database URL to check for SSL mode
+const sslMode = process.env.DATABASE_URL.includes('sslmode=require');
+
+// Configure SSL based on environment
+const sslConfig = (process.env.NODE_ENV === 'production' || (isReplit && sslMode))
+  ? { ssl: true }
+  : undefined;
+
 // Configure connection options based on environment
 const connectionOptions = {
   max: isReplit ? 10 : 5,
   idle_timeout: isReplit ? 60 : 30,
   connect_timeout: 20,
-  // SSL configuration based on environment
-  ssl: isReplit || process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: false }
-    : false,
+  ...sslConfig,
   connection: {
     // Extended timeouts for better stability
     statement_timeout: 60000,
@@ -35,7 +40,7 @@ let client: postgres.Sql;
 let db: ReturnType<typeof drizzle>;
 
 try {
-  // Create database connection
+  // Create database connection with enhanced error handling
   client = postgres(process.env.DATABASE_URL, connectionOptions);
 
   // Initialize Drizzle with schema
@@ -45,7 +50,7 @@ try {
   if (process.env.NODE_ENV === 'development') {
     console.log('[Database] Connected successfully');
     console.log('[Database] Environment:', isReplit ? 'Replit' : 'Local/Windsurf');
-    console.log('[Database] SSL:', connectionOptions.ssl ? 'Enabled' : 'Disabled');
+    console.log('[Database] SSL:', sslConfig ? 'Enabled' : 'Disabled');
   }
 } catch (error) {
   const errorMessage = error instanceof Error ? error.message : 'Unknown database error';
@@ -54,11 +59,13 @@ try {
     { 
       error: errorMessage,
       environment: isReplit ? 'replit' : 'local',
+      ssl: sslConfig ? 'enabled' : 'disabled',
       tips: [
         'Check DATABASE_URL format',
         'Verify database credentials',
         'Ensure database server is running',
-        'Check network connectivity'
+        'Check network connectivity',
+        'Verify SSL configuration'
       ]
     }
   );

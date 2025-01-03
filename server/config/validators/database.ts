@@ -7,6 +7,7 @@ import { BaseValidator, ValidationResult } from './base';
 import { db } from '@db';
 import { sql } from 'drizzle-orm';
 import { DatabaseConnectionError } from '../../errors/environment';
+import { isReplit } from '../environment';
 
 /**
  * Validates database configuration and connectivity
@@ -30,7 +31,7 @@ export class DatabaseValidator extends BaseValidator {
       });
 
       // Check if URL starts with any of the valid prefixes
-      const validPrefixes = ['postgresql://', 'postgres://'];
+      const validPrefixes = this.config.database.urlPrefix;
       const hasValidPrefix = validPrefixes.some(prefix => dbUrl.startsWith(prefix));
 
       if (!hasValidPrefix) {
@@ -39,53 +40,87 @@ export class DatabaseValidator extends BaseValidator {
           {
             expected: validPrefixes,
             received: dbUrl.split(':')[0],
-            tip: 'DATABASE_URL must start with either postgresql:// or postgres://'
+            tip: 'DATABASE_URL must start with a valid prefix (postgresql:// or postgres://)'
           }
         );
       }
 
+      // Check SSL configuration in production
+      if (process.env.NODE_ENV === 'production') {
+        if (!dbUrl.includes('sslmode=require')) {
+          throw this.createError(
+            'SSL mode must be required in production',
+            {
+              current: 'SSL not configured',
+              required: 'sslmode=require',
+              tip: 'Add sslmode=require to your DATABASE_URL in production'
+            }
+          );
+        }
+      }
+
       // Test database connectivity with enhanced error handling
       try {
-        // First try a simple connection test
+        // First try a basic connection test
         await db.execute(sql`SELECT 1`);
         this.log('Basic connectivity test passed');
 
-        // If basic test passes, get detailed connection info
-        const result = await db.execute(sql`
+        // Check SSL status using pg_stat_ssl view
+        const [sslStatus] = await db.execute(sql`
+          SELECT
+            ssl,
+            ssl_cipher
+          FROM pg_stat_ssl
+          WHERE pid = pg_backend_pid()
+        `);
+
+        // Get connection details
+        const [connDetails] = await db.execute(sql`
           SELECT 
             current_database() as db_name,
             current_user as user_name,
             version() as version,
             inet_server_addr() AS server_ip,
-            current_setting('server_version_num') AS version_num,
-            current_setting('ssl') as ssl_enabled
+            (SELECT setting FROM pg_settings WHERE name = 'server_version_num') as version_num
         `);
 
-        if (!result || !result[0]) {
-          throw new Error('No response from database query');
+        if (!connDetails) {
+          throw new Error('Could not retrieve database connection details');
         }
 
         const connectionInfo = {
-          database: result[0].db_name,
-          user: result[0].user_name,
-          version: result[0].version?.split(' ')[0],
-          serverIp: result[0].server_ip,
-          versionNum: result[0].version_num,
-          ssl: result[0].ssl_enabled === 'on'
+          database: connDetails.db_name,
+          user: connDetails.user_name,
+          version: connDetails.version?.toString().split(' ')[0],
+          serverIp: connDetails.server_ip,
+          versionNum: connDetails.version_num,
+          ssl: sslStatus?.ssl || false,
+          sslCipher: sslStatus?.ssl_cipher || ''
         };
 
         this.log('Database connection successful', connectionInfo);
 
-        // Additional SSL checks for production
-        if (this.config.database.requireSSL && process.env.NODE_ENV === 'production' && !connectionInfo.ssl) {
+        // Validate SSL in production
+        if (process.env.NODE_ENV === 'production' && !connectionInfo.ssl) {
           throw this.createError(
-            'SSL is required for database connections in production',
+            'SSL connection is required in production environment',
             {
               current: 'SSL disabled',
               required: 'SSL enabled',
-              tip: 'Enable SSL in database configuration'
+              tips: [
+                'Ensure DATABASE_URL includes sslmode=require',
+                'Verify SSL certificate configuration',
+                'Check database server SSL settings'
+              ]
             }
           );
+        }
+
+        // In Replit, recommend SSL even in development
+        if (isReplit && !connectionInfo.ssl && process.env.NODE_ENV !== 'production') {
+          this.log('Warning: SSL is recommended for Replit environment', {
+            tip: 'Consider enabling SSL for better security'
+          });
         }
 
         return {
@@ -93,7 +128,9 @@ export class DatabaseValidator extends BaseValidator {
           message: 'Database validation passed',
           details: {
             ...connectionInfo,
-            sslRequired: this.config.database.requireSSL
+            sslRequired: process.env.NODE_ENV === 'production' || isReplit,
+            environment: this.config.name,
+            nodeEnv: process.env.NODE_ENV
           }
         };
       } catch (dbError) {
@@ -109,7 +146,8 @@ export class DatabaseValidator extends BaseValidator {
               'Check if the database server is running',
               'Verify database credentials in DATABASE_URL',
               'Ensure network connectivity to database host',
-              'Check if database port is accessible'
+              'Check if database port is accessible',
+              'Verify SSL configuration if enabled'
             ]
           }
         );
