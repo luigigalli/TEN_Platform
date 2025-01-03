@@ -9,10 +9,10 @@ import { env, isReplit, getExternalUrl } from "./config/environment";
 import { validateDeploymentEnvironment } from "./config/deployment-validator";
 
 // Type definition for server instance
-type ServerInstance = {
-  app: express.Express;
+interface ServerInstance {
+  app: express.Application;
   server: Server;
-};
+}
 
 // Global server instance for cleanup
 let serverInstance: ServerInstance | null = null;
@@ -61,14 +61,15 @@ process.on('SIGINT', async () => {
     }
 
     const app = express();
-    serverInstance = await initializeServer(app);
+    const { server } = await initializeServer(app);
+    serverInstance = { app, server };
 
     // Register API routes first
     registerRoutes(app);
 
     // Set up environment-specific middleware after API routes
     if (config.env === 'development') {
-      await handleViteMiddleware(app, serverInstance.server);
+      await handleViteMiddleware(app, server);
     } else {
       handleStaticFiles(app);
     }
@@ -85,14 +86,21 @@ process.on('SIGINT', async () => {
       });
     });
 
+    const address = server.address();
+    if (!address) {
+      throw new Error('Server failed to bind to address');
+    }
+
+    const port = typeof address === 'string' ? parseInt(address.split(':')[1], 10) : address.port;
+
     // Log server configuration
     console.log('\nServer Configuration:');
     console.log('- Environment:', env.NODE_ENV);
     console.log('- Platform:', isReplit ? 'Replit' : 'Local');
-    console.log('- Internal Port:', serverInstance.server.address().port);
-    console.log('- External Port:', isReplit ? env.EXTERNAL_PORT : serverInstance.server.address().port);
+    console.log('- Internal Port:', port);
+    console.log('- External Port:', isReplit ? env.EXTERNAL_PORT : port);
     console.log('- Host:', env.HOST);
-    console.log('- URL:', env.REPL_URL || getExternalUrl(serverInstance.server.address().port));
+    console.log('- URL:', env.REPL_URL || getExternalUrl(port));
     if (isReplit) {
       console.log('- Client Port:', env.CLIENT_PORT);
       console.log('- External Client Port:', env.EXTERNAL_CLIENT_PORT);

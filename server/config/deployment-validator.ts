@@ -12,7 +12,7 @@ import net from 'net';
 async function validatePortAvailability(port: number, host: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
-    
+
     server.once('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
         reject(new PortBindingError(`Port ${port} is already in use`, { port }));
@@ -59,7 +59,7 @@ async function validateDatabaseConnection(): Promise<void> {
  */
 export async function validateDeploymentEnvironment(): Promise<void> {
   console.log('[Deployment] Starting environment validation...');
-  
+
   // 1. Validate environment type
   if (!validateEnvironment(env.NODE_ENV)) {
     throw new DeploymentValidationError('Invalid NODE_ENV', { 
@@ -79,8 +79,12 @@ export async function validateDeploymentEnvironment(): Promise<void> {
   await validatePortAvailability(env.PORT, env.HOST);
 
   // 4. Validate database configuration
+  if (!process.env.DATABASE_URL) {
+    throw new DeploymentValidationError('Missing DATABASE_URL environment variable');
+  }
+
   const dbConfig = {
-    url: env.DATABASE_URL,
+    url: process.env.DATABASE_URL,
     ssl: env.NODE_ENV === 'production',
     max_connections: 10,
     idle_timeout: 60
