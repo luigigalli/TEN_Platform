@@ -42,16 +42,29 @@ if ! npm run verify-env; then
 fi
 echo -e "${GREEN}✓ Environment verified${NC}\n"
 
-# Check database status
-echo -e "${BOLD}🗄️  Checking database status...${NC}"
+# Check database status and sync
+echo -e "${BOLD}🗄️  Checking database status and sync...${NC}"
 if ! npm run db:status; then
     echo -e "${YELLOW}⚠️  Database status check failed${NC}"
     echo "Please check database configuration and connectivity"
+else
+    echo -e "${GREEN}✓ Database connection verified${NC}"
 fi
-echo -e "${GREEN}✓ Database status checked${NC}\n"
+
+# Verify sync status
+echo -e "\n${BOLD}🔄 Checking database sync status...${NC}"
+if [ -f "scripts/db-sync.ts" ]; then
+    echo "Verifying schema compatibility..."
+    if ! tsx scripts/db-sync.ts --verify-only; then
+        echo -e "${YELLOW}⚠️  Database sync verification failed${NC}"
+        echo "Please check sync logs and run sync if needed"
+    else
+        echo -e "${GREEN}✓ Database sync verified${NC}"
+    fi
+fi
 
 # Check for recent updates in team-updates directory
-echo -e "${BOLD}📢 Checking recent team updates...${NC}"
+echo -e "\n${BOLD}📢 Checking recent team updates...${NC}"
 check_updates "team-updates/action-items.md"
 check_updates "team-updates/credentials.md"
 check_updates "team-updates/breaking-changes.md"
