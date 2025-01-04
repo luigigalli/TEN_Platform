@@ -14,10 +14,29 @@ print_warning() {
     echo -e "${YELLOW}WARNING:${NC} $1"
 }
 
+# Configure git with token auth if needed
+setup_git_auth() {
+    if [ -n "$GIT_TOKEN" ]; then
+        remote_url=$(git config --get remote.origin.url)
+        if [[ $remote_url != *"@"* ]]; then
+            # Convert HTTPS URL to token auth URL
+            new_url="https://oauth2:${GIT_TOKEN}@github.com/${remote_url#https://github.com/}"
+            git remote set-url origin "$new_url"
+            print_status "Git authentication configured"
+        fi
+    else
+        print_warning "GIT_TOKEN not found. Please set it in Replit secrets."
+        exit 1
+    fi
+}
+
 # Function to sync with remote
 sync_branch() {
     current_branch=$(git rev-parse --abbrev-ref HEAD)
     print_status "Current branch: $current_branch"
+
+    # Setup git auth
+    setup_git_auth
 
     # Stash any changes
     if [[ -n $(git status -s) ]]; then
@@ -44,6 +63,9 @@ create_feature() {
         exit 1
     fi
 
+    # Setup git auth
+    setup_git_auth
+
     branch_name="feat/$1"
     print_status "Creating new feature branch: $branch_name"
     git checkout -b $branch_name
@@ -57,6 +79,9 @@ commit_changes() {
         echo "Usage: ./git-sync.sh commit \"your commit message\""
         exit 1
     fi
+
+    # Setup git auth
+    setup_git_auth
 
     print_status "Committing changes..."
     git add .
