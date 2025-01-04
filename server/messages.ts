@@ -1,45 +1,51 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { messages } from "../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import type { Express } from "express";
 import { db } from "../db";
 import { requireAuth } from "./auth";
+import { EnvironmentValidationError } from "./errors/environment";
 
-// Validation schemas
+// Enhanced validation schemas with user-friendly messages
 const messageTypeSchema = z.enum([
   'expert_inquiry',
   'trip_discussion',
   'booking_support',
   'admin_notice'
-]);
+], {
+  errorMap: () => ({ message: "Please select a valid message type" })
+});
 
 const contextTypeSchema = z.enum([
   'trip',
   'booking',
   'service'
-]);
+], {
+  errorMap: () => ({ message: "Please select a valid context type" })
+});
 
 const createMessageSchema = z.object({
-  receiverId: z.number().int().positive(),
-  message: z.string().min(1),
+  receiverId: z.number().int().positive("Please select a valid recipient"),
+  message: z.string().min(1, "Message cannot be empty")
+    .max(2000, "Message cannot exceed 2000 characters"),
   messageType: messageTypeSchema,
-  contextId: z.number().int().positive().optional(),
+  contextId: z.number().int().positive("Please select a valid context").optional(),
   contextType: contextTypeSchema.optional(),
-  conversationId: z.string().min(1),
+  conversationId: z.string().min(1, "Conversation ID is required"),
 });
 
 export function setupMessagesRoutes(app: Express) {
-  // Get messages for a conversation or all user's messages
+  // Get messages with enhanced error handling
   app.get("/api/messages/:conversationId?", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id;
       const { conversationId } = req.params;
 
       if (!userId) {
-        return res.status(401).json({
-          message: "Authentication required",
-          code: "auth_required",
+        throw new EnvironmentValidationError("User authentication required", {
+          userMessage: "Please log in to access messages",
+          path: "authentication"
         });
       }
 
@@ -62,9 +68,20 @@ export function setupMessagesRoutes(app: Express) {
       res.json(userMessages);
     } catch (error) {
       console.error("Error fetching messages:", error);
+      if (error instanceof EnvironmentValidationError) {
+        return res.status(error.status).json({
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+      }
       res.status(500).json({
-        message: "Failed to fetch messages",
+        message: "Unable to fetch messages at this time",
         code: "fetch_error",
+        details: {
+          userMessage: "Please try again later",
+          troubleshooting: ["Check your internet connection", "Refresh the page"]
+        }
       });
     }
   });
@@ -76,9 +93,9 @@ export function setupMessagesRoutes(app: Express) {
       const validatedData = createMessageSchema.parse(req.body);
 
       if (!userId) {
-        return res.status(401).json({
-          message: "Authentication required",
-          code: "auth_required",
+        throw new EnvironmentValidationError("User authentication required", {
+          userMessage: "Please log in to send a message",
+          path: "authentication"
         });
       }
 
@@ -107,9 +124,20 @@ export function setupMessagesRoutes(app: Express) {
           details: error.errors,
         });
       }
+      if (error instanceof EnvironmentValidationError) {
+        return res.status(error.status).json({
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+      }
       res.status(500).json({
-        message: "Failed to send message",
+        message: "Unable to send message at this time",
         code: "send_error",
+        details: {
+          userMessage: "Please try again later",
+          troubleshooting: ["Check your internet connection", "Refresh the page"]
+        }
       });
     }
   });
@@ -121,9 +149,9 @@ export function setupMessagesRoutes(app: Express) {
       const messageId = parseInt(req.params.messageId);
 
       if (!userId) {
-        return res.status(401).json({
-          message: "Authentication required",
-          code: "auth_required",
+        throw new EnvironmentValidationError("User authentication required", {
+          userMessage: "Please log in to mark message as read",
+          path: "authentication"
         });
       }
 
@@ -156,9 +184,20 @@ export function setupMessagesRoutes(app: Express) {
       res.json(updatedMessage);
     } catch (error) {
       console.error("Error marking message as read:", error);
+      if (error instanceof EnvironmentValidationError) {
+        return res.status(error.status).json({
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+      }
       res.status(500).json({
-        message: "Failed to mark message as read",
+        message: "Unable to mark message as read at this time",
         code: "update_error",
+        details: {
+          userMessage: "Please try again later",
+          troubleshooting: ["Check your internet connection", "Refresh the page"]
+        }
       });
     }
   });

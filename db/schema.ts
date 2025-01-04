@@ -29,15 +29,19 @@ export const users = pgTable("users", {
 
 // Create a more robust validation schema for user registration
 export const insertUserSchema = z.object({
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  email: z.string().email("Invalid email format"),
-  firstName: z.string().min(2, "First name is required"),  // Now required
-  lastName: z.string().optional(),
+  password: z.string().min(6, "Password must be at least 6 characters long")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number"),
+  email: z.string().email("Please enter a valid email address"),
+  firstName: z.string().min(2, "First name must be at least 2 characters long").max(50, "First name cannot exceed 50 characters"),
+  lastName: z.string().optional().transform(val => val || null),
   username: z.string().optional(),  // Will be generated from firstName
-  role: z.enum(["user", "expert", "provider", "admin"]).default("user"),
-  bio: z.string().optional(),
-  avatar: z.string().optional(),
-  languages: z.array(z.string()).optional(),
+  role: z.enum(["user", "expert", "provider", "admin"], {
+    errorMap: () => ({ message: "Invalid role selected. Please choose a valid role." })
+  }).default("user"),
+  bio: z.string().max(500, "Bio cannot exceed 500 characters").optional(),
+  avatar: z.string().url("Please provide a valid URL for the avatar").optional(),
+  languages: z.array(z.string()).max(10, "Cannot add more than 10 languages").optional(),
   profileCompleted: z.boolean().optional()
 });
 
@@ -223,14 +227,20 @@ export const insertTripSchema = z.object({
 export const insertServiceSchema = createInsertSchema(services);
 
 const bookingValidationSchema = z.object({
-  serviceId: z.number(),
-  startDate: z.string().transform((str) => new Date(str)),
-  endDate: z.string().nullable().transform((str) => str ? new Date(str) : null),
-  totalPrice: z.number().or(z.string()).transform((val) =>
-    typeof val === "string" ? parseFloat(val) : val
-  ),
-  status: z.string(),
-  notes: z.string().optional(),
+  serviceId: z.number().positive("Please select a valid service"),
+  startDate: z.string()
+    .refine(str => !isNaN(Date.parse(str)), "Please enter a valid start date")
+    .transform(str => new Date(str)),
+  endDate: z.string()
+    .nullable()
+    .refine(str => !str || !isNaN(Date.parse(str)), "Please enter a valid end date")
+    .transform(str => str ? new Date(str) : null),
+  totalPrice: z.number()
+    .or(z.string())
+    .refine(val => !isNaN(Number(val)), "Total price must be a valid number")
+    .transform(val => typeof val === "string" ? parseFloat(val) : val),
+  status: z.string().min(1, "Status is required"),
+  notes: z.string().max(1000, "Notes cannot exceed 1000 characters").optional(),
 });
 
 export const insertBookingSchema = bookingValidationSchema;
@@ -244,9 +254,15 @@ export const insertMessageSchema = createInsertSchema(messages, {
     'trip_discussion',
     'booking_support',
     'admin_notice'
-  ]),
-  contextType: z.enum(['trip', 'booking', 'service']).optional(),
-  status: z.enum(['read', 'unread']).default('unread'),
+  ], {
+    errorMap: () => ({ message: "Please select a valid message type" })
+  }),
+  contextType: z.enum(['trip', 'booking', 'service'], {
+    errorMap: () => ({ message: "Please select a valid context type" })
+  }).optional(),
+  status: z.enum(['read', 'unread'], {
+    errorMap: () => ({ message: "Invalid message status" })
+  }).default('unread'),
 });
 
 export const selectMessageSchema = createSelectSchema(messages);
