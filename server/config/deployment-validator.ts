@@ -10,6 +10,7 @@ import { ServerValidator } from './validators/server';
 import { ValidationResult } from './validators/base';
 import { DeploymentValidationError } from '../errors/environment';
 import { env, isReplit } from './environment';
+import { formatValidationError } from './validation';
 
 /**
  * Validates the complete deployment environment
