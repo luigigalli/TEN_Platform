@@ -17,6 +17,11 @@ Format: WF-YYYYMMDD-XXX (WF: Workflow, XXX: Sequential number)
     - Improved error handling system
     - Added user-friendly messages
     - Updated authentication system
+  - Review Comments:
+    - Added proposed enhancements section
+    - Documented potential improvements
+    - Suggested future enhancements
+    - Listed optimization opportunities
 
 ## Guidelines
 1. Create a new temp file for each significant change
@@ -27,7 +32,7 @@ Format: WF-YYYYMMDD-XXX (WF: Workflow, XXX: Sequential number)
 
 ## Review Process
 1. Review all temp docs related to current changes
-2. Consolidate documentation into final format
+2. Document proposed enhancements as review comments
 3. Update main documentation files
 4. Archive temp docs with completed status
 
