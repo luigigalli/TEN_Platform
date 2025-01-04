@@ -38,13 +38,17 @@ sync_branch() {
     # Setup git auth
     setup_git_auth
 
+    # Configure git pull to use rebase strategy
+    git config pull.rebase true
+    print_status "Configured pull strategy to use rebase"
+
     # Stash any changes
     if [[ -n $(git status -s) ]]; then
         print_status "Stashing changes..."
         git stash
     fi
 
-    # Pull latest changes
+    # Pull latest changes with rebase
     print_status "Pulling latest changes..."
     git pull origin $current_branch
 
