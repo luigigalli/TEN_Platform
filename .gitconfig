@@ -1,0 +1,42 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+
+[pull]
+	rebase = true
+
+[merge]
+	ff = false
+
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+	requireSignedCommits = true
+	mergeoptions = --ff-only
+
+[branch "develop"]
+	remote = origin
+	merge = refs/heads/develop
+	mergeoptions = --no-ff
+
+[push]
+	default = current
+
+[branch]
+	autosetuprebase = always
+
+[status]
+	showStash = true
+	showUntrackedFiles = all
+
+[protection "main"]
+	pattern = main
+	requiredReviewers = 1
+	requiredStatusChecks = true
+
+[protection "develop"]
+	pattern = develop
+	requiredReviewers = 1
+	requiredStatusChecks = true
