@@ -14,6 +14,8 @@ Format: WF-YYYYMMDD-XXX (WF: Workflow, XXX: Sequential number)
     - server/messages.ts (Updated validation system)
     - git-sync.sh (Added authentication improvements)
     - docs/branch-strategy.md (Added branch strategy documentation)
+    - docs/github-issue-guide.md (Added comprehensive issue guidelines)
+    - team-updates/temp/example-issues.md (Added concrete issue examples)
   - Related PR: [PR number] Environment-Aware Updates
   - Changes:
     - Enhanced user schema validation
@@ -28,7 +30,8 @@ Format: WF-YYYYMMDD-XXX (WF: Workflow, XXX: Sequential number)
     - Listed optimization opportunities
   - Development Strategy:
     - Using GitHub Issues for tracking
-    - Temporary branch workflow
+    - Enhanced issue naming conventions
+    - Added detailed issue templates and examples
     - Cross-environment considerations
     - Comprehensive documentation updates
 
@@ -47,9 +50,10 @@ Format: WF-YYYYMMDD-XXX (WF: Workflow, XXX: Sequential number)
 
 ## Recent Updates (January 05, 2025)
 1. Implemented GitHub Issues-based development workflow
-2. Removed feature branch categories in favor of temporary branches
-3. Enhanced validation message tracking
-4. Improved cross-environment compatibility documentation
+2. Added comprehensive GitHub Issues naming conventions and templates
+3. Created detailed example issues for common scenarios
+4. Enhanced issue documentation with TEN-specific examples
+5. Added environment-specific considerations for all issue types
 
 ## Archive
 (Empty - First implementation)
