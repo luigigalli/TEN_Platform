@@ -4,25 +4,62 @@ This document outlines the development workflow for our application, designed to
 
 ## Branch Strategy
 
-### Main Branches
+### Issue Types and Branch Naming
+All changes must start with a GitHub issue using one of these types:
+
+1. `[Env]` → `env/*`
+   - Environment configurations
+   - Workflow changes
+   - Build system updates
+   - CI/CD modifications
+
+2. `[Feature]` → `feat/*`
+   - New features
+   - Major enhancements
+   - User-facing changes
+
+3. `[Bug]` → `fix/*`
+   - Bug fixes
+   - Error corrections
+   - Quick patches
+
+4. `[Enhancement]` → `enhance/*`
+   - Code improvements
+   - Refactoring
+   - Performance optimization
+
+5. `[Security]` → `security/*`
+   - Security fixes
+   - Vulnerability patches
+   - Authentication changes
+
+6. `[Performance]` → `perf/*`
+   - Performance improvements
+   - Optimization work
+   - Resource usage enhancements
+
+### Branch Naming Rules
+- Branch names must match their issue type prefix
+- Use lowercase letters and hyphens only
+- Include issue number when applicable
+- Keep names concise but descriptive
+
+Examples:
+- `env/issue-123-workflow-automation`
+- `feat/user-authentication`
+- `fix/issue-456-login-error`
+- `security/password-validation`
+
+### Protected Branches
 - `main`: Production-ready code
   - Protected branch
   - Requires pull request review
   - Linear history enforced
   - Status checks must pass
-- `develop`: Integration branch for feature development
+- `develop`: Integration branch
   - Protected branch
   - Requires pull request review
   - Status checks must pass
-
-### Feature Branches
-- `feat/*`: New features and enhancements
-- `fix/*`: Bug fixes and patches
-- `env/*`: Environment-specific configurations
-- `docs/*`: Documentation updates
-- `sync/*`: Database synchronization operations
-- `issue-XXX/*`: Issue-specific changes
-- `hotfix-XXX/*`: Critical production fixes
 
 ## Database Synchronization Process
 

@@ -3,21 +3,34 @@
 # Get current branch name
 branch_name=$(git symbolic-ref --short HEAD)
 
-# Define valid branch patterns
+# Define protected branches
+protected_branches=("main" "develop")
+
+# Check if current branch is protected
+for protected in "${protected_branches[@]}"; do
+    if [ "$branch_name" = "$protected" ]; then
+        exit 0  # Allow commit on protected branches
+    fi
+done
+
+# Define valid branch patterns based on issue types
 valid_patterns=(
-    '^main$'
-    '^develop$'
-    '^feat/[a-z0-9-]+$'
-    '^fix/[a-z0-9-]+$'
-    '^docs/[a-z0-9-]+$'
-    '^env/[a-z0-9-]+$'
-    '^issue-[0-9]+-[a-z0-9-]+$'
-    '^hotfix-[0-9]+-[a-z0-9-]+$'
+    '^env/[a-z0-9-]+$'      # Environment changes
+    '^feat/[a-z0-9-]+$'     # Features
+    '^fix/[a-z0-9-]+$'      # Bug fixes
+    '^enhance/[a-z0-9-]+$'  # Enhancements
+    '^security/[a-z0-9-]+$' # Security updates
+    '^perf/[a-z0-9-]+$'     # Performance improvements
 )
 
-# Check if branch name matches any valid pattern
+# Optional issue number pattern
+issue_pattern='(issue-[0-9]+-)?'
+
+# Check if branch name matches any valid pattern with optional issue number
 is_valid=0
-for pattern in "${valid_patterns[@]}"; do
+for base_pattern in "${valid_patterns[@]}"; do
+    # Insert issue pattern before the last segment
+    pattern="${base_pattern/\/\[/\/${issue_pattern}[}"
     if [[ $branch_name =~ $pattern ]]; then
         is_valid=1
         break
@@ -25,51 +38,30 @@ for pattern in "${valid_patterns[@]}"; do
 done
 
 if [ $is_valid -eq 0 ]; then
-    echo "ERROR: Invalid branch name '$branch_name'"
-    echo "Branch names must follow these patterns:"
-    echo "  - feat/description (for features)"
-    echo "  - fix/description (for bug fixes)"
-    echo "  - docs/description (for documentation)"
-    echo "  - env/description (for environment configuration)"
-    echo "  - issue-XXX-description (for specific issues)"
-    echo "  - hotfix-XXX-description (for urgent fixes)"
+    echo "Error: Branch name '$branch_name' does not follow naming convention"
+    echo "Valid formats:"
+    echo "  env/[description]"
+    echo "  env/issue-XXX-[description]"
+    echo "  feat/[description]"
+    echo "  feat/issue-XXX-[description]"
+    echo "  fix/[description]"
+    echo "  fix/issue-XXX-[description]"
+    echo "  enhance/[description]"
+    echo "  enhance/issue-XXX-[description]"
+    echo "  security/[description]"
+    echo "  security/issue-XXX-[description]"
+    echo "  perf/[description]"
+    echo "  perf/issue-XXX-[description]"
     exit 1
 fi
 
-# Check protected branches
-if [[ "$branch_name" =~ ^(main|develop)$ ]]; then
-    echo "ERROR: Direct commits to $branch_name branch are not allowed"
-    echo "Please create a feature branch and submit a pull request"
-    exit 1
-fi
-
-# Get the commit message
-if [ -z "$1" ]; then
-    # No argument provided, try to get the message from the last commit
-    commit_msg=$(git log -1 --pretty=%B)
-else
-    # Use the provided commit message file
-    commit_msg=$(cat "$1")
-fi
-
-# Define commit message format
-commit_pattern='^(feat|fix|docs|style|refactor|test|chore|env): .+'
-
-if [ -n "$commit_msg" ] && ! [[ "$commit_msg" =~ $commit_pattern ]]; then
-    echo "ERROR: Invalid commit message format"
-    echo "Commit message must start with type: feat, fix, docs, style, refactor, test, chore, or env"
-    echo "Example: env: update replit configuration"
-    exit 1
-fi
-
-# Verify issue reference if required
-if [[ "$branch_name" =~ ^issue-[0-9]+ ]]; then
-    issue_number=$(echo "$branch_name" | grep -o '[0-9]\+')
-    if ! grep -q "Resolves: #$issue_number" "$1"; then
-        echo "ERROR: Commit message must reference issue #$issue_number"
-        echo "Add 'Resolves: #$issue_number' to your commit message"
+# Run the TypeScript branch name validator if it exists
+if [ -f "$(git rev-parse --show-toplevel)/scripts/verify-branch-name.ts" ]; then
+    tsx "$(git rev-parse --show-toplevel)/scripts/verify-branch-name.ts"
+    if [ $? -ne 0 ]; then
         exit 1
     fi
 fi
 
+# If we get here, the branch name is valid
 exit 0
