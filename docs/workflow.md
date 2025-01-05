@@ -6,14 +6,23 @@ This document outlines the development workflow for our application, designed to
 
 ### Main Branches
 - `main`: Production-ready code
+  - Protected branch
+  - Requires pull request review
+  - Linear history enforced
+  - Status checks must pass
 - `develop`: Integration branch for feature development
+  - Protected branch
+  - Requires pull request review
+  - Status checks must pass
 
 ### Feature Branches
-- `feat/*`: New features
-- `fix/*`: Bug fixes
+- `feat/*`: New features and enhancements
+- `fix/*`: Bug fixes and patches
 - `env/*`: Environment-specific configurations
 - `docs/*`: Documentation updates
 - `sync/*`: Database synchronization operations
+- `issue-XXX/*`: Issue-specific changes
+- `hotfix-XXX/*`: Critical production fixes
 
 ## Database Synchronization Process
 
