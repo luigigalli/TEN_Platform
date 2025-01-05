@@ -44,6 +44,7 @@ validate_branch_name() {
         '^feat/[a-z0-9-]+$'
         '^fix/[a-z0-9-]+$'
         '^docs/[a-z0-9-]+$'
+        '^env/[a-z0-9-]+$'
         '^issue-[0-9]+-[a-z0-9-]+$'
         '^hotfix-[0-9]+-[a-z0-9-]+$'
     )
@@ -117,11 +118,12 @@ create_feature() {
     if ! validate_branch_name "$branch_name"; then
         print_error "Invalid branch name format: $branch_name"
         echo "Branch names must follow these patterns:"
-        echo "  - feat/description"
-        echo "  - fix/description"
-        echo "  - docs/description"
-        echo "  - issue-XXX-description"
-        echo "  - hotfix-XXX-description"
+        echo "  - feat/description (for features)"
+        echo "  - fix/description (for bug fixes)"
+        echo "  - docs/description (for documentation)"
+        echo "  - env/description (for environment configuration)"
+        echo "  - issue-XXX-description (for specific issues)"
+        echo "  - hotfix-XXX-description (for urgent fixes)"
         exit 1
     fi
 
