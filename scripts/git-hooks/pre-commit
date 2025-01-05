@@ -5,42 +5,61 @@ branch_name=$(git symbolic-ref --short HEAD)
 
 # Define valid branch patterns
 valid_patterns=(
-  '^main$'
-  '^develop$'
-  '^issue-[0-9]+-[a-z0-9-]+$'
-  '^hotfix-[0-9]+-[a-z0-9-]+$'
-  '^feat/[a-z0-9-]+$'
-  '^fix/[a-z0-9-]+$'
-  '^docs/[a-z0-9-]+$'
+    '^main$'
+    '^develop$'
+    '^feat/[a-z0-9-]+$'
+    '^fix/[a-z0-9-]+$'
+    '^docs/[a-z0-9-]+$'
+    '^issue-[0-9]+-[a-z0-9-]+$'
+    '^hotfix-[0-9]+-[a-z0-9-]+$'
 )
 
 # Check if branch name matches any valid pattern
 is_valid=0
 for pattern in "${valid_patterns[@]}"; do
-  if [[ $branch_name =~ $pattern ]]; then
-    is_valid=1
-    break
-  fi
+    if [[ $branch_name =~ $pattern ]]; then
+        is_valid=1
+        break
+    fi
 done
 
 if [ $is_valid -eq 0 ]; then
-  echo "ERROR: Invalid branch name '$branch_name'"
-  echo "Branch names must follow these patterns:"
-  echo "  - main"
-  echo "  - develop"
-  echo "  - issue-XXX-description"
-  echo "  - hotfix-XXX-description"
-  echo "  - feat/description"
-  echo "  - fix/description"
-  echo "  - docs/description"
-  exit 1
+    echo "ERROR: Invalid branch name '$branch_name'"
+    echo "Branch names must follow these patterns:"
+    echo "  - feat/description"
+    echo "  - fix/description"
+    echo "  - docs/description"
+    echo "  - issue-XXX-description"
+    echo "  - hotfix-XXX-description"
+    exit 1
 fi
 
 # Check protected branches
 if [[ "$branch_name" =~ ^(main|develop)$ ]]; then
-  echo "ERROR: Direct commits to $branch_name branch are not allowed"
-  echo "Please create a feature branch and submit a pull request"
-  exit 1
+    echo "ERROR: Direct commits to $branch_name branch are not allowed"
+    echo "Please create a feature branch and submit a pull request"
+    exit 1
+fi
+
+# Verify commit message format
+commit_msg=$(cat "$GIT_DIR/COMMIT_EDITMSG")
+commit_pattern='^(feat|fix|docs|style|refactor|test|chore): .+$'
+
+if ! [[ "$commit_msg" =~ $commit_pattern ]]; then
+    echo "ERROR: Invalid commit message format"
+    echo "Commit message must start with type: feat, fix, docs, style, refactor, test, or chore"
+    echo "Example: feat: add user authentication"
+    exit 1
+fi
+
+# Verify issue reference if required
+if [[ "$branch_name" =~ ^issue-[0-9]+ ]]; then
+    issue_number=$(echo "$branch_name" | grep -o '[0-9]\+')
+    if ! grep -q "Resolves: #$issue_number" "$GIT_DIR/COMMIT_EDITMSG"; then
+        echo "ERROR: Commit message must reference issue #$issue_number"
+        echo "Add 'Resolves: #$issue_number' to your commit message"
+        exit 1
+    fi
 fi
 
 exit 0
