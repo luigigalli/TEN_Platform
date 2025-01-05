@@ -251,3 +251,42 @@ This document outlines the development workflow for our application, designed to
    - Documentation updates
    - Cross-environment coordination
    - Database sync planning
+
+## Issue Management
+
+### Issue Status Workflow
+Issues follow a defined lifecycle indicated by status labels:
+
+1. **In Queue** (`status: in queue`)
+   - Issue is created and awaiting development
+   - Automatically applied to new issues
+
+2. **Developing** (`status: developing`)
+   - Development work has started
+   - Applied when a branch is created
+
+3. **Testing** (`status: testing`)
+   - Implementation is complete
+   - Testing is in progress
+
+4. **Reviewing** (`status: reviewing`)
+   - Pull request is created
+   - Changes are under review
+
+5. **Approved** (`status: approved`)
+   - Changes have been approved
+   - Ready for merge
+
+6. **Merged** (`status: merged`)
+   - Changes have been merged
+   - Issue is closed
+
+7. **Discarded** (`status: discarded`)
+   - Issue has been rejected or abandoned
+   - PR closed without merging
+
+### Status Transitions
+- Status changes are mostly automated through GitHub Actions
+- Manual status updates can be made by maintainers
+- Each status change is logged in issue comments
+- Status changes trigger notifications to relevant team members
