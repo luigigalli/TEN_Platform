@@ -1,0 +1,102 @@
+name: Issue Status Management
+
+on:
+  issues:
+    types: [opened, labeled, unlabeled]
+  pull_request:
+    types: [opened, closed]
+
+jobs:
+  manage_issue_status:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Set Initial Status
+        if: github.event_name == 'issues' && github.event.action == 'opened'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['status: in queue']
+            })
+
+      - name: Update Status on PR Open
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issue_number = context.payload.pull_request.body.match(/#(\d+)/)?.[1];
+            if (issue_number) {
+              // Remove old status labels
+              const issue = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issue_number)
+              });
+              
+              const statusLabels = issue.data.labels
+                .filter(label => label.name.startsWith('status:'))
+                .map(label => label.name);
+              
+              if (statusLabels.length > 0) {
+                await github.rest.issues.removeLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parseInt(issue_number),
+                  labels: statusLabels
+                });
+              }
+              
+              // Add reviewing status
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issue_number),
+                labels: ['status: reviewing']
+              });
+            }
+
+      - name: Update Status on PR Close
+        if: github.event_name == 'pull_request' && github.event.action == 'closed'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issue_number = context.payload.pull_request.body.match(/#(\d+)/)?.[1];
+            if (issue_number) {
+              // Remove old status labels
+              const issue = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issue_number)
+              });
+              
+              const statusLabels = issue.data.labels
+                .filter(label => label.name.startsWith('status:'))
+                .map(label => label.name);
+              
+              if (statusLabels.length > 0) {
+                await github.rest.issues.removeLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parseInt(issue_number),
+                  labels: statusLabels
+                });
+              }
+              
+              // Add merged or discarded status based on PR merge status
+              const newStatus = context.payload.pull_request.merged ? 
+                'status: merged' : 'status: discarded';
+              
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issue_number),
+                labels: [newStatus]
+              });
+            }
