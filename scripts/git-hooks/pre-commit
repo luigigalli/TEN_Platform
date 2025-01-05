@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# Get current branch name
+branch_name=$(git symbolic-ref --short HEAD)
+
+# Define valid branch patterns
+valid_patterns=(
+  '^main$'
+  '^develop$'
+  '^issue-[0-9]+-[a-z0-9-]+$'
+  '^hotfix-[0-9]+-[a-z0-9-]+$'
+  '^feat/[a-z0-9-]+$'
+  '^fix/[a-z0-9-]+$'
+  '^docs/[a-z0-9-]+$'
+)
+
+# Check if branch name matches any valid pattern
+is_valid=0
+for pattern in "${valid_patterns[@]}"; do
+  if [[ $branch_name =~ $pattern ]]; then
+    is_valid=1
+    break
+  fi
+done
+
+if [ $is_valid -eq 0 ]; then
+  echo "ERROR: Invalid branch name '$branch_name'"
+  echo "Branch names must follow these patterns:"
+  echo "  - main"
+  echo "  - develop"
+  echo "  - issue-XXX-description"
+  echo "  - hotfix-XXX-description"
+  echo "  - feat/description"
+  echo "  - fix/description"
+  echo "  - docs/description"
+  exit 1
+fi
+
+# Check protected branches
+if [[ "$branch_name" =~ ^(main|develop)$ ]]; then
+  echo "ERROR: Direct commits to $branch_name branch are not allowed"
+  echo "Please create a feature branch and submit a pull request"
+  exit 1
+fi
+
+exit 0

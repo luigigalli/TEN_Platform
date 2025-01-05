@@ -10,23 +10,55 @@ NC='\033[0m' # No Color
 
 echo -e "${BOLD}🔍 Running post-pull checks...${NC}\n"
 
-# Function to check file for recent changes
-check_updates() {
-    local file=$1
-    local days=${2:-1}
-    if [ -f "$file" ]; then
-        local recent_changes=$(find "$file" -mtime -$days)
-        if [ ! -z "$recent_changes" ]; then
-            echo -e "${YELLOW}⚠️  Recent changes detected in ${file}${NC}"
-            echo -e "${BOLD}Recent updates:${NC}"
-            tail -n 5 "$file"
-            echo
-        fi
+# Verify branch configuration first
+echo -e "${BOLD}🔧 Verifying branch configuration...${NC}"
+if ! ./scripts/verify-branch-config.sh; then
+    echo -e "${RED}❌ Branch configuration verification failed${NC}"
+    echo "Please run ./scripts/setup-repository.sh to fix configuration"
+    exit 1
+fi
+echo -e "${GREEN}✓ Branch configuration verified${NC}\n"
+
+# Check current branch
+current_branch=$(git symbolic-ref --short HEAD)
+echo -e "${BOLD}📍 Current branch: ${current_branch}${NC}"
+
+# Verify we're not on protected branches
+if [[ "$current_branch" =~ ^(main|develop)$ ]]; then
+    echo -e "${RED}❌ Warning: You are on a protected branch ($current_branch)${NC}"
+    echo "Please switch to a feature branch for development"
+    exit 1
+fi
+
+# Check branch sync status
+echo -e "\n${BOLD}🔄 Checking branch sync status...${NC}"
+if ! git remote update origin --prune; then
+    echo -e "${RED}❌ Failed to update remote references${NC}"
+    exit 1
+fi
+
+# Get the divergence status
+UPSTREAM=${1:-'@{u}'}
+LOCAL=$(git rev-parse @)
+REMOTE=$(git rev-parse "$UPSTREAM")
+BASE=$(git merge-base @ "$UPSTREAM")
+
+if [ $? -ne 0 ]; then
+    echo -e "${YELLOW}⚠️  No upstream branch set${NC}"
+else
+    if [ "$LOCAL" = "$REMOTE" ]; then
+        echo -e "${GREEN}✓ Branch is up to date${NC}"
+    elif [ "$LOCAL" = "$BASE" ]; then
+        echo -e "${YELLOW}⚠️  Need to pull${NC}"
+    elif [ "$REMOTE" = "$BASE" ]; then
+        echo -e "${YELLOW}⚠️  Need to push${NC}"
+    else
+        echo -e "${RED}❌ Branches have diverged${NC}"
     fi
-}
+fi
 
 # Check for new dependencies
-echo -e "${BOLD}📦 Checking dependencies...${NC}"
+echo -e "\n${BOLD}📦 Checking dependencies...${NC}"
 if ! npm install; then
     echo -e "${RED}❌ Error installing dependencies${NC}"
     exit 1
@@ -65,9 +97,18 @@ fi
 
 # Check for recent updates in team-updates directory
 echo -e "\n${BOLD}📢 Checking recent team updates...${NC}"
-check_updates "team-updates/action-items.md"
-check_updates "team-updates/credentials.md"
-check_updates "team-updates/breaking-changes.md"
+for file in team-updates/*.md; do
+    if [ -f "$file" ]; then
+        if [ $(find "$file" -mtime -1 2>/dev/null) ]; then
+            echo -e "${YELLOW}⚠️  Recent changes in ${file}${NC}"
+            echo -e "${BOLD}Recent updates:${NC}"
+            tail -n 5 "$file"
+            echo
+        fi
+    fi
+done
 
 echo -e "\n${GREEN}✅ Post-pull checks completed${NC}"
-echo -e "${YELLOW}⚠️  Remember to review the full checklist in team-updates/post-pull-checklist.md${NC}"
+if [ -f "team-updates/post-pull-checklist.md" ]; then
+    echo -e "${YELLOW}⚠️  Remember to review the full checklist in team-updates/post-pull-checklist.md${NC}"
+fi
