@@ -51,3 +51,22 @@ vite.config.ts.*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+*.egg
+*.egg-info/
+.eggs/
+*.pyc
+.python-version
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jira configuration
+scripts/jira/config.py
