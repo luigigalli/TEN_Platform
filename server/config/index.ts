@@ -7,7 +7,6 @@ import {
   isWindsurf,
   isDevelopment,
   getReplitDevDomain,
-  getExternalUrl
 } from './environment';
 
 // Enhanced configuration schema with environment-specific validation
@@ -90,4 +89,11 @@ function buildConfig(): Config {
 export const config = buildConfig();
 
 // Export environment utilities
-export * from './environment';
+export {
+  env,
+  isReplit,
+  isWindsurf,
+  isDevelopment,
+  Environment,
+  getReplitDevDomain,
+} from './environment';

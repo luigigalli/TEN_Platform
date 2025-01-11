@@ -1,33 +1,39 @@
-import { Request, Response, NextFunction } from 'express';
+import { type Request, type Response, type NextFunction } from 'express';
+import { StatusCodes } from 'http-status-codes';
+import { verifyToken } from '../utils/jwt';
+import { db } from '../../db';
+import { users } from '../../db/schema';
+import { eq } from 'drizzle-orm';
 
-// Mock user data for testing
-const mockUser = {
-  id: 1,
-  name: 'Test User',
-  email: 'test@example.com',
-  created_at: new Date(),
-  updated_at: new Date()
-};
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'No token provided' });
+    }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Check for session cookie
-  const sessionId = req.cookies.session;
+    const token = authHeader.split(' ')[1];
+    const decoded = await verifyToken(token);
 
-  if (!sessionId) {
-    return res.status(401).json({
-      ok: false,
-      message: 'Not authenticated'
-    });
+    const [user] = await db.select({
+      id: users.id,
+      username: users.username,
+      email: users.email,
+      role: users.role
+    })
+    .from(users)
+    .where(eq(users.id, decoded.userId))
+    .limit(1);
+
+    if (!user) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'User not found' });
+    }
+
+    // Attach user to request
+    (req as any).user = user;
+    next();
+  } catch (error) {
+    console.error('Auth error:', error);
+    return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'Invalid token' });
   }
-
-  // In development, if there's any session cookie, consider them authenticated
-  if (process.env.NODE_ENV === 'development' && sessionId === 'mock-session-id') {
-    return next();
-  }
-
-  // For any other case, return unauthorized
-  res.status(401).json({
-    ok: false,
-    message: 'Invalid session'
-  });
 }

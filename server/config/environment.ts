@@ -118,11 +118,9 @@ export function getReplitDevDomain(): string | null {
   return env.REPL_URL;
 }
 
-const getDefaultClientPort = () => {
-  return 5173;
-};
+// Client Configuration
+export const clientPort = 5173;
 
-//Client Configuration
 //  CLIENT_PORT: z.coerce.number()
 //    .optional()
 //    .default(getDefaultClientPort()),

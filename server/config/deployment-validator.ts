@@ -3,14 +3,20 @@
  * @module config/deployment-validator
  */
 
-import { detectEnvironment } from './environments';
-import { EnvironmentValidator } from './validators/environment';
-import { DatabaseValidator } from './validators/database';
-import { ServerValidator } from './validators/server';
-import { ValidationResult } from './validators/base';
-import { DeploymentValidationError } from '../errors/environment';
-import { env, isReplit } from './environment';
-import { formatValidationError } from './validation';
+import { z } from 'zod';
+import { db } from '@db';
+import { config } from '../config';
+import { EnvironmentValidationError } from '../errors/environment';
+
+const deploymentSchema = z.object({
+  database: z.object({
+    url: z.string().min(1),
+  }),
+  server: z.object({
+    port: z.number().min(1),
+    host: z.string().min(1),
+  }),
+});
 
 /**
  * Validates the complete deployment environment
@@ -115,16 +121,33 @@ export async function validateDeploymentEnvironment(): Promise<void> {
 
 /**
  * Perform a health check of the deployment environment
- * @returns {Promise<boolean>} True if all checks pass, false otherwise
+ * @returns {Promise<void>} 
  */
-export async function performHealthCheck(): Promise<boolean> {
+export async function performHealthCheck(): Promise<void> {
   try {
-    await validateDeploymentEnvironment();
-    return true;
+    // Validate environment configuration
+    const result = deploymentSchema.safeParse(config);
+    if (!result.success) {
+      throw new EnvironmentValidationError(
+        'Invalid deployment configuration',
+        { details: result.error.format() }
+      );
+    }
+
+    // Check database connection
+    await db.execute(sql`SELECT 1`);
+
+    // All checks passed
+    return;
   } catch (error) {
-    console.error('\n[Health Check] Failed:', error);
-    console.error('[Health Check] Run npm run verify-env for detailed diagnostics');
-    return false;
+    // Log error details
+    if (error instanceof Error) {
+      console.error(`[Deployment] Error: ${error.message}`);
+      if ('details' in error) {
+        console.error('[Deployment] Details:', JSON.stringify(error.details, null, 2));
+      }
+    }
+    throw error;
   }
 }
 

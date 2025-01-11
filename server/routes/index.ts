@@ -1,11 +1,6 @@
-import { Router } from 'express';
-import { userRouter } from './user';
+import { type Express } from 'express';
+import { setupHealthRoutes } from './health';
 
-const router = Router();
-
-// Register routes
-router.use('/user', userRouter);
-
-export function registerRoutes(app: Router) {
-  app.use('/api', router);
+export function setupRoutes(app: Express): void {
+  setupHealthRoutes(app);
 }
