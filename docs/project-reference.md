@@ -1,14 +1,81 @@
 # TEN Platform Project Reference Guide
 
+## Quick Start
+1. Set up Jira access:
+   ```bash
+   source scripts/jira/set_jira_env.sh
+   ```
+2. Create a work log for your task:
+   ```bash
+   cp docs/templates/work-log-template.md task_work_logs/TENP-[number]_work_log.md
+   ```
+3. Create your local branch:
+   ```bash
+   git checkout -b TENP-[number]-description develop
+   ```
+
 ## Project Management
 
 ### Jira
-- **URL**: https://ten-platform.atlassian.net
-- **Credentials Location**: Environment variables required:
-  - `JIRA_EMAIL`
-  - `JIRA_API_TOKEN`
-- **Project Key**: TENP
-- **Setup Script**: `/scripts/jira/set_jira_env.sh`
+- **Access**:
+  - URL: https://ten-platform.atlassian.net
+  - Login via Google Workspace (ten.platform@gmail.com)
+  - First time setup: Request access from team lead
+  
+- **Credentials Setup**:
+  1. Visit https://id.atlassian.com/manage-profile/security/api-tokens
+  2. Create an API token
+  3. Add to your environment:
+     ```bash
+     export JIRA_EMAIL="your.email@ten-platform.com"
+     export JIRA_API_TOKEN="your-api-token"
+     ```
+  4. Or use the setup script: `source scripts/jira/set_jira_env.sh`
+
+- **Project Navigation**:
+  - Project Key: TENP
+  - Boards: https://ten-platform.atlassian.net/jira/software/projects/TENP/boards
+  - Backlog: https://ten-platform.atlassian.net/jira/software/projects/TENP/backlog
+  - Active Sprints: https://ten-platform.atlassian.net/jira/software/projects/TENP/boards/active-sprints
+
+- **Task Management**:
+  - View Tasks: https://ten-platform.atlassian.net/browse/TENP
+  - Create Task: https://ten-platform.atlassian.net/secure/CreateIssue!default.jspa
+  - Task Templates available in Jira's create dialog
+
+## Automated Workflows
+
+### Current Automations
+1. **Local Development**:
+   - `scripts/create-task-branch.sh` - Creates branch and work log for new task
+   - `scripts/sync-to-github.sh` - Syncs local changes with GitHub
+   - `scripts/finish-task.sh` - Merges task branch and updates work log
+
+2. **Testing**:
+   - Pre-commit hooks for code formatting and linting
+   - Automated test running on file changes
+   - Coverage reports generation
+
+3. **Documentation**:
+   - Work log templates
+   - API documentation generation
+   - Changelog updates
+
+### Future Automation Plans
+1. **Task Management**:
+   - Automatic work log creation from template
+   - Branch creation with correct naming
+   - Jira status updates from git actions
+
+2. **Development Flow**:
+   - Automated dependency checks
+   - Code quality metrics
+   - Performance benchmarking
+
+3. **Integration**:
+   - Automated merge preparation
+   - Test coverage verification
+   - Documentation updates
 
 ## Repository Structure
 
