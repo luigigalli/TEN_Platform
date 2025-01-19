@@ -4,62 +4,56 @@ This document outlines the development workflow for our application, designed to
 
 ## Branch Strategy
 
-### Issue Types and Branch Naming
-All changes must start with a GitHub issue using one of these types:
+### Branch Types and Naming
+All changes must be associated with a Jira ticket using one of these types:
 
-1. `[Env]` → `env/*`
+1. `env/*` - Environment Changes
    - Environment configurations
    - Workflow changes
    - Build system updates
    - CI/CD modifications
 
-2. `[Feature]` → `feat/*`
+2. `feat/*` - Features
    - New features
    - Major enhancements
    - User-facing changes
 
-3. `[Bug]` → `fix/*`
+3. `fix/*` - Bug Fixes
    - Bug fixes
    - Error corrections
    - Quick patches
 
-4. `[Enhancement]` → `enhance/*`
+4. `enhance/*` - Enhancements
    - Code improvements
    - Refactoring
    - Performance optimization
 
-5. `[Security]` → `security/*`
+5. `security/*` - Security Updates
    - Security fixes
    - Vulnerability patches
    - Authentication changes
 
-6. `[Performance]` → `perf/*`
+6. `perf/*` - Performance
    - Performance improvements
    - Optimization work
    - Resource usage enhancements
 
 ### Branch Naming Rules
-- Branch names must match their issue type prefix
+- Branch names must match their type prefix
 - Use lowercase letters and hyphens only
-- Include issue number when applicable
+- Include Jira ticket number
 - Keep names concise but descriptive
 
 Examples:
-- `env/issue-123-workflow-automation`
-- `feat/user-authentication`
-- `fix/issue-456-login-error`
-- `security/password-validation`
+- `env/TENP-123-workflow-automation`
+- `feat/TENP-456-user-authentication`
+- `fix/TENP-789-login-error`
+- `security/TENP-321-password-validation`
 
-### Protected Branches
-- `main`: Production-ready code
-  - Protected branch
-  - Requires pull request review
-  - Linear history enforced
-  - Status checks must pass
-- `develop`: Integration branch
-  - Protected branch
-  - Requires pull request review
-  - Status checks must pass
+### Local Development Only
+- Feature branches are created and managed locally
+- Only the `develop` branch is pushed to GitHub
+- Local branches should be deleted after merging to `develop`
 
 ## Database Synchronization Process
 
@@ -93,7 +87,7 @@ Examples:
 1. **Create Descriptive PRs**
    - Clear title describing the change
    - Detailed description of modifications
-   - Link to related issues or tickets
+   - Link to related Jira ticket
    - List of affected environments
    - Database impact assessment (if applicable)
 
@@ -265,7 +259,7 @@ Examples:
 
 1. **Commit Guidelines**
    - Clear, descriptive messages
-   - Reference issues/tickets
+   - Reference Jira ticket
    - One logical change per commit
    - Document database changes
 
