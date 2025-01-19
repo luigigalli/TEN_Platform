@@ -1,0 +1,7 @@
+{
+  "extension": ["ts"],
+  "spec": "tests/**/*.test.ts",
+  "require": ["ts-node/register", "tests/mocha.setup.ts"],
+  "watch-files": ["tests/**/*.ts", "server/**/*.ts"],
+  "timeout": 30000
+}
