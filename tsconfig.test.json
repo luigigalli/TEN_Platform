@@ -1,0 +1,33 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@db": ["./db/index.ts"],
+      "@db/*": ["./db/*"],
+      "@/*": ["./client/src/*", "./server/*"]
+    },
+    "types": ["mocha", "chai", "node"],
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "noEmit": true
+  },
+  "ts-node": {
+    "files": true,
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
+  },
+  "include": [
+    "tests/**/*.ts",
+    "server/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

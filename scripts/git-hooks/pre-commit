@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Get current branch name
+branch_name=$(git symbolic-ref --short HEAD)
+
+# Define protected branches
+protected_branches=("main" "develop")
+
+# Check if current branch is protected
+for protected in "${protected_branches[@]}"; do
+    if [ "$branch_name" = "$protected" ]; then
+        exit 0  # Allow commit on protected branches
+    fi
+done
+
+# Define valid branch patterns based on issue types
+valid_patterns=(
+    '^env/[a-z0-9-]+$'      # Environment changes
+    '^feat/[a-z0-9-]+$'     # Features
+    '^fix/[a-z0-9-]+$'      # Bug fixes
+    '^enhance/[a-z0-9-]+$'  # Enhancements
+    '^security/[a-z0-9-]+$' # Security updates
+    '^perf/[a-z0-9-]+$'     # Performance improvements
+)
+
+# Optional issue number pattern
+issue_pattern='(issue-[0-9]+-)?'
+
+# Check if branch name matches any valid pattern with optional issue number
+is_valid=0
+for base_pattern in "${valid_patterns[@]}"; do
+    # Insert issue pattern before the last segment
+    pattern="${base_pattern/\/\[/\/${issue_pattern}[}"
+    if [[ $branch_name =~ $pattern ]]; then
+        is_valid=1
+        break
+    fi
+done
+
+if [ $is_valid -eq 0 ]; then
+    echo "Error: Branch name '$branch_name' does not follow naming convention"
+    echo "Valid formats:"
+    echo "  env/[description]"
+    echo "  env/issue-XXX-[description]"
+    echo "  feat/[description]"
+    echo "  feat/issue-XXX-[description]"
+    echo "  fix/[description]"
+    echo "  fix/issue-XXX-[description]"
+    echo "  enhance/[description]"
+    echo "  enhance/issue-XXX-[description]"
+    echo "  security/[description]"
+    echo "  security/issue-XXX-[description]"
+    echo "  perf/[description]"
+    echo "  perf/issue-XXX-[description]"
+    exit 1
+fi
+
+# Run the TypeScript branch name validator if it exists
+if [ -f "$(git rev-parse --show-toplevel)/scripts/verify-branch-name.ts" ]; then
+    tsx "$(git rev-parse --show-toplevel)/scripts/verify-branch-name.ts"
+    if [ $? -ne 0 ]; then
+        exit 1
+    fi
+fi
+
+# If we get here, the branch name is valid
+exit 0

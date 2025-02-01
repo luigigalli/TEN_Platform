@@ -1,0 +1,17 @@
+.gitignore
+api.ts
+api/apis.ts
+api/authApi.ts
+api/healthApi.ts
+api/usersApi.ts
+git_push.sh
+model/authLoginPost200Response.ts
+model/createUserDto.ts
+model/healthGet200Response.ts
+model/loginDto.ts
+model/modelError.ts
+model/models.ts
+model/updateUserDto.ts
+model/user.ts
+model/usersGet200Response.ts
+model/validationError.ts

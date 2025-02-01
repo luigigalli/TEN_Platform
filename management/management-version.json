@@ -1,0 +1,8 @@
+{
+  "version": "2025.01.1.0",
+  "lastUpdate": "2025-01-19",
+  "compatibility": {
+    "minAppVersion": "1.0.0.0",
+    "maxAppVersion": "1.99.99.99"
+  }
+}

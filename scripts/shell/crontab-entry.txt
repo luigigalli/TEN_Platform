@@ -1,0 +1,2 @@
+# Refresh context every 5 minutes
+*/5 * * * * /Users/luigigalli/local-dev/TEN/TEN_Platform/scripts/shell/refresh-cron.sh
