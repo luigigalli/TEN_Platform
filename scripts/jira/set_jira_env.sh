@@ -1,3 +1,21 @@
 #!/bin/bash
-export JIRA_EMAIL="luigi.galli@gmail.com"
-export JIRA_API_TOKEN="ATATT3xFfGF0Ew5PdBvDKrv5P_vPrxXPYGOCfPMXXbvpBGFNQgJvUO1YfYHyOxNaVmzVOgxXGz7RbK0Qr1FD1sLmVLKEVRTqEMWCwgVhqq4DZ1kXJ5JrQkF5our6GD6oSXXYOGBxuEBZ5-6jrGmxLyXXXXXXXXX"
+
+# Check if JIRA_API_TOKEN is set in environment
+if [ -z "$JIRA_API_TOKEN" ]; then
+    echo "Error: JIRA_API_TOKEN environment variable is not set"
+    echo "Please set it in your environment or .env file first"
+    exit 1
+fi
+
+# Check if JIRA_EMAIL is set in environment
+if [ -z "$JIRA_EMAIL" ]; then
+    echo "Error: JIRA_EMAIL environment variable is not set"
+    echo "Please set it in your environment or .env file first"
+    exit 1
+fi
+
+# Export the variables
+export JIRA_API_TOKEN
+export JIRA_EMAIL
+
+echo "Jira environment variables have been set"
