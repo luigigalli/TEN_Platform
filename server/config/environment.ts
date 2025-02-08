@@ -62,6 +62,13 @@ export const envSchema = z.object({
 
   // Windsurf environment
   WINDSURF_ENV: z.string().optional(),
+
+  // SMTP Configuration
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional().default("noreply@tenplatform.com"),
 });
 
 export type EnvVars = z.infer<typeof envSchema>;
@@ -92,6 +99,18 @@ function loadEnvVars(): EnvVars {
 
 // Export validated environment variables
 export const env = loadEnvVars();
+
+// Detect current environment configuration
+export function detectEnvironment() {
+  return {
+    name: env.NODE_ENV,
+    isReplit,
+    isWindsurf,
+    isDevelopment,
+    host: getDefaultHost(),
+    port: getDefaultPort()
+  };
+}
 
 /**
  * Get the external URL for server logging

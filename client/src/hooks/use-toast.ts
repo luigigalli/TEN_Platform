@@ -301,7 +301,7 @@ function toast(props: Toast): ToastResult {
  * @returns Object containing toast state and control functions
  * @throws {ToastError} If state becomes invalid
  */
-export function useToast(): UseToastResult {
+function useToast(): UseToastResult {
   const [state, setState] = React.useState<State>(memoryState);
 
   React.useEffect(() => {
@@ -317,8 +317,12 @@ export function useToast(): UseToastResult {
   return {
     ...state,
     toast,
-    dismiss: (toastId?: string) => dispatch({ type: 'DISMISS_TOAST', toastId }),
+    dismiss: (toastId?: string) => dispatch({
+      type: 'DISMISS_TOAST',
+      toastId,
+    }),
   };
 }
 
 export { toast };
+export { useToast };

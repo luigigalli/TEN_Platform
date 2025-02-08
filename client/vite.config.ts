@@ -13,7 +13,7 @@ const isReplit = Boolean(process.env.REPL_ID);
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 // Get default ports (same as server)
-const getDefaultPort = () => isReplit ? 3001 : 3000;
+const getDefaultPort = () => isReplit ? 3001 : 5176;
 const getDefaultHost = () => isReplit ? '0.0.0.0' : 'localhost';
 
 // https://vitejs.dev/config/
@@ -28,22 +28,14 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       host: getDefaultHost(),
-      port: 5173, // Default Vite port
-      proxy: {
+      port: 5176,
+      strictPort: true,
+      proxy: isDevelopment ? undefined : {
         '/api': {
-          target: `http://${getDefaultHost()}:${getDefaultPort()}`,
+          target: 'http://localhost:3000',
           changeOrigin: true,
           secure: false,
           configure: (proxy, _options) => {
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              if (req.body) {
-                const bodyData = JSON.stringify(req.body);
-                proxyReq.setHeader('Content-Type', 'application/json');
-                proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-                proxyReq.write(bodyData);
-              }
-            });
-
             proxy.on('error', (err, _req, _res) => {
               console.error('[VITE] Proxy error:', err.message);
             });
@@ -57,4 +49,4 @@ export default defineConfig(({ mode }) => {
       },
     },
   }
-})
+});

@@ -29,11 +29,10 @@ const connectionOptions = {
   connection: {
     // Extended timeouts for better stability
     statement_timeout: 60000,
-    query_timeout: 60000,
   },
   debug: process.env.NODE_ENV === 'development',
   onnotice: () => {}, // Suppress notice messages
-  onparameter: () => {}, // Suppress parameter messages
+  onparameter: () => {}, // Suppress parameter messages,
 };
 
 let client: postgres.Sql;

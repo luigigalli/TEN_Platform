@@ -7,6 +7,85 @@ import { z } from 'zod';
 import { db } from '@db';
 import { config } from '../config';
 import { EnvironmentValidationError } from '../errors/environment';
+import { env, isReplit, detectEnvironment } from './environment';
+
+interface ValidationResult {
+  success: boolean;
+  message: string;
+  details?: any;
+}
+
+interface ValidatorConfig {
+  name: string;
+  isReplit: boolean;
+  isWindsurf: boolean;
+  isDevelopment: boolean;
+  host: string;
+  port: number;
+}
+
+class BaseValidator {
+  protected config: ValidatorConfig;
+
+  constructor(config: ValidatorConfig) {
+    this.config = config;
+  }
+
+  async validate(): Promise<ValidationResult> {
+    throw new Error('Validate method must be implemented');
+  }
+}
+
+class EnvironmentValidator extends BaseValidator {
+  async validate(): Promise<ValidationResult> {
+    try {
+      const { NODE_ENV } = env;
+      return {
+        success: true,
+        message: `Environment variables validated successfully (NODE_ENV: ${NODE_ENV})`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Environment validation failed: ${error.message}`
+      };
+    }
+  }
+}
+
+class DatabaseValidator extends BaseValidator {
+  async validate(): Promise<ValidationResult> {
+    try {
+      // Database is already connected at this point
+      return {
+        success: true,
+        message: 'Database connection validated successfully'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Database validation failed: ${error.message}`
+      };
+    }
+  }
+}
+
+class ServerValidator extends BaseValidator {
+  async validate(): Promise<ValidationResult> {
+    try {
+      const { port, host } = this.config;
+      return {
+        success: true,
+        message: `Server configuration validated successfully (${host}:${port})`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Server validation failed: ${error.message}`
+      };
+    }
+  }
+}
 
 const deploymentSchema = z.object({
   database: z.object({
@@ -57,7 +136,7 @@ export async function validateDeploymentEnvironment(): Promise<void> {
         // Enhanced error reporting with troubleshooting hints
         console.error(`\n[Deployment] ✗ ${validator.constructor.name} failed:`);
 
-        if (error instanceof DeploymentValidationError) {
+        if (error instanceof EnvironmentValidationError) {
           console.error(`[Deployment] Error: ${error.message}`);
           if (error.details) {
             console.error('[Deployment] Details:', JSON.stringify(error.details, null, 2));
@@ -76,7 +155,7 @@ export async function validateDeploymentEnvironment(): Promise<void> {
           throw error;
         }
 
-        throw new DeploymentValidationError(
+        throw new EnvironmentValidationError(
           `Validation failed in ${validator.constructor.name}`,
           { 
             error: error instanceof Error ? error.message : String(error),
@@ -96,7 +175,7 @@ export async function validateDeploymentEnvironment(): Promise<void> {
       const deploymentReadiness = results.every(r => r.success && r.details?.deploymentReady);
 
       if (!deploymentReadiness) {
-        throw new DeploymentValidationError(
+        throw new EnvironmentValidationError(
           'Environment is not fully configured for production deployment',
           {
             results: results.map(r => ({

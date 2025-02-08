@@ -1,6 +1,8 @@
 import { type Express } from 'express';
-import { setupHealthRoutes } from './health';
+import { setupHealthRoutes } from './health.js';
+import { setupAuthRoutes } from './auth.js';
 
-export function setupRoutes(app: Express): void {
+export const setupRoutes = (app: Express): void => {
   setupHealthRoutes(app);
+  setupAuthRoutes(app);
 }

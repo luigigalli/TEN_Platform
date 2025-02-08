@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, boolean, json, numeric, integer, decimal } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean, json, numeric, integer, decimal, uuid, varchar, date, jsonb } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -27,15 +27,76 @@ export const itineraryItemSchema = z.object({
 
 export type ItineraryItem = z.infer<typeof itineraryItemSchema>;
 
+// User roles enum
+export const UserRole = {
+  ADMIN: 'admin',
+  EDITOR: 'editor',
+  CUSTOMER_SUPPORT: 'customer_support',
+  LOCAL_EXPERT: 'local_expert',
+  ACTIVITY_SUPPLIER: 'activity_supplier',
+  ACCOMMODATION_SUPPLIER: 'accommodation_supplier',
+  CUSTOMER: 'customer'
+} as const;
+
+// User tables
 export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  role: text("role").notNull().default("user"),
+  id: uuid("id").defaultRandom().primaryKey(),
+  prefix: varchar("prefix", { length: 10 }),
+  firstName: varchar("first_name").notNull(),
+  middleName: varchar("middle_name"),
+  lastName: varchar("last_name").notNull(),
+  suffix: varchar("suffix", { length: 10 }),
+  email: varchar("email").notNull().unique(),
+  password: varchar("password").notNull(),
+  phone: varchar("phone"),
+  phoneCode: varchar("phone_code"),
+  birthDate: date("birth_date"),
+  gender: varchar("gender", { enum: ["male", "female", "other"] }),
+  imageName: varchar("image_name"),
+  language: varchar("language", { enum: ["en", "es", "fr", "de", "it"] }).notNull().default("en"),
+  otherLanguages: jsonb("other_languages").$type<string[]>(),
+  shortBio: text("short_bio"),
+  role: varchar("role", { 
+    enum: [
+      UserRole.ADMIN,
+      UserRole.EDITOR,
+      UserRole.CUSTOMER_SUPPORT,
+      UserRole.LOCAL_EXPERT,
+      UserRole.ACTIVITY_SUPPLIER,
+      UserRole.ACCOMMODATION_SUPPLIER,
+      UserRole.CUSTOMER
+    ]
+  }).notNull().default(UserRole.CUSTOMER),
+  permissions: jsonb("permissions").$type<string[]>().notNull().default([]),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  emailVerifiedAt: timestamp("email_verified_at"),
+  rememberToken: varchar("remember_token"),
+  active: boolean("active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Groups table for organizing users
+export const groups = pgTable("groups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  permissions: jsonb("permissions").$type<string[]>().notNull().default([]),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// User-Group relationship
+export const userGroups = pgTable("user_groups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  groupId: uuid("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Services table
 export const services = pgTable("services", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -46,6 +107,7 @@ export const services = pgTable("services", {
   updatedAt: timestamp("updated_at"),
 });
 
+// Bookings table
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
@@ -59,6 +121,7 @@ export const bookings = pgTable("bookings", {
   updatedAt: timestamp("updated_at"),
 });
 
+// Trips table
 export const trips = pgTable("trips", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -73,6 +136,7 @@ export const trips = pgTable("trips", {
   updatedAt: timestamp("updated_at"),
 });
 
+// Trip members table
 export const tripMembers = pgTable("trip_members", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
@@ -83,6 +147,7 @@ export const tripMembers = pgTable("trip_members", {
   lastActivity: timestamp("last_activity"),
 });
 
+// Messages table
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
   senderId: integer("sender_id")
@@ -99,6 +164,7 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Trip activities table
 export const tripActivities = pgTable("trip_activities", {
   id: serial("id").primaryKey(),
   type: text("type").notNull(),
@@ -108,6 +174,7 @@ export const tripActivities = pgTable("trip_activities", {
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Posts table
 export const posts = pgTable("posts", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -124,6 +191,22 @@ export const usersRelations = relations(users, ({ many }) => ({
   posts: many(posts),
   sentMessages: many(messages, { relationName: "sentMessages" }),
   receivedMessages: many(messages, { relationName: "receivedMessages" }),
+  userGroups: many(userGroups),
+}));
+
+export const groupsRelations = relations(groups, ({ many }) => ({
+  userGroups: many(userGroups),
+}));
+
+export const userGroupsRelations = relations(userGroups, ({ one }) => ({
+  user: one(users, {
+    fields: [userGroups.userId],
+    references: [users.id],
+  }),
+  group: one(groups, {
+    fields: [userGroups.groupId],
+    references: [groups.id],
+  }),
 }));
 
 export const servicesRelations = relations(services, ({ one, many }) => ({
@@ -192,16 +275,36 @@ export const postsRelations = relations(posts, ({ one }) => ({
 
 // Schemas for validation and type inference
 export const insertUserSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters").max(50),
+  prefix: z.string().max(10).optional(),
+  firstName: z.string().min(1, "First name is required"),
+  middleName: z.string().optional(),
+  lastName: z.string().min(1, "Last name is required"),
+  suffix: z.string().max(10).optional(),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  role: z.enum(["user", "admin"], {
-    errorMap: () => ({ message: "Invalid role. Must be either 'user' or 'admin'" })
-  }).default("user"),
-  bio: z.string().max(500, "Bio cannot exceed 500 characters").optional(),
-  avatar: z.string().url("Please provide a valid URL for the avatar").optional(),
-  languages: z.array(z.string()).max(10, "Cannot add more than 10 languages").optional(),
-  profileCompleted: z.boolean().optional()
+  phone: z.string().optional(),
+  phoneCode: z.string().optional(),
+  birthDate: z.date().optional(),
+  gender: z.enum(["male", "female", "other"]).optional(),
+  imageName: z.string().optional(),
+  language: z.enum(["en", "es", "fr", "de", "it"]).default("en"),
+  otherLanguages: z.array(z.string()).max(10, "Cannot add more than 10 languages").optional(),
+  shortBio: z.string().max(500, "Bio cannot exceed 500 characters").optional(),
+  role: z.enum([
+    UserRole.ADMIN,
+    UserRole.EDITOR,
+    UserRole.CUSTOMER_SUPPORT,
+    UserRole.LOCAL_EXPERT,
+    UserRole.ACTIVITY_SUPPLIER,
+    UserRole.ACCOMMODATION_SUPPLIER,
+    UserRole.CUSTOMER
+  ]).default(UserRole.CUSTOMER),
+  permissions: z.array(z.string()).optional(),
+  emailVerified: z.boolean().optional(),
+  emailVerifiedAt: z.date().optional(),
+  rememberToken: z.string().optional(),
+  active: z.boolean().optional(),
+  lastLoginAt: z.date().optional(),
 });
 
 export const insertTripSchema = z.object({
