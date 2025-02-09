@@ -1,20 +1,38 @@
-import { createContext, useContext, ReactNode, useState, useEffect } from "react";
+import { createContext, useContext, ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
 
-interface Role {
-  id: string;
-  name: string;
-  description: string;
+interface NotificationPreferences {
+  email: {
+    marketing: boolean;
+    security: boolean;
+    updates: boolean;
+    newsletter: boolean;
+  };
+  inApp: {
+    mentions: boolean;
+    replies: boolean;
+    directMessages: boolean;
+    systemUpdates: boolean;
+  };
 }
 
 interface User {
   id: string;
-  username: string;
   email: string;
-  roles: Role[];
+  firstName: string;
+  lastName: string;
+  role: string;
+  permissions: string[];
+  isVerified: boolean;
+  notificationPreferences: NotificationPreferences;
+}
+
+interface LoginData {
+  email: string;
+  password: string;
 }
 
 interface AuthContextType {
@@ -22,8 +40,13 @@ interface AuthContextType {
   isLoading: boolean;
   isError: boolean;
   error: Error | null;
-  login: (data: { username: string; password: string }) => Promise<void>;
+  isAuthenticated: boolean;
+  login: (data: LoginData) => Promise<void>;
   logout: () => Promise<void>;
+  verifyEmail: (token: string) => Promise<{ message: string }>;
+  requestPasswordReset: (email: string) => Promise<{ message: string }>;
+  resetPassword: (token: string, password: string) => Promise<{ message: string }>;
+  updateProfile: (data: Partial<User>) => Promise<{ user: User }>;
   isAdmin: boolean;
 }
 
@@ -33,8 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
+  // Auth check query
   const {
     data: user,
     isLoading,
@@ -44,111 +67,129 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useQuery({
     queryKey: ["auth"],
     queryFn: async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          console.log('No token found, redirecting to login');
-          setLocation('/auth');
-          return null;
-        }
-
-        console.log('Token found, checking auth status');
-        const response = await api.auth.me();
-        if (!response.user) {
-          console.log('No user data returned, clearing token');
-          localStorage.removeItem("token");
-          setLocation('/auth');
-          return null;
-        }
-        console.log('Auth check successful:', response.user);
-        return response.user;
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        localStorage.removeItem("token");
+      const token = localStorage.getItem("token");
+      if (!token) {
+        console.log('No token found, redirecting to login');
         setLocation('/auth');
         return null;
       }
+      console.log('Token found, checking auth status');
+      const { user } = await api.auth.me();
+      console.log('Auth check successful:', user);
+      return user;
     },
-    retry: false,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 60 * 60 * 1000, // 1 hour
   });
 
-  // Handle initial page load and redirects
-  useEffect(() => {
-    if (!isLoading) {
-      setIsInitialLoad(false);
-      const currentPath = window.location.pathname;
-      
-      if (!user) {
-        // Only redirect to auth if we're not already there
-        if (currentPath !== '/auth') {
-          console.log('No user, redirecting to login');
-          setLocation('/auth');
-        }
-      } else {
-        // Handle redirects for authenticated users
-        if (currentPath === '/auth' || currentPath === '/') {
-          if (user.roles.some((role) => role.name.toUpperCase() === "ADMIN")) {
-            setLocation("/admin");
-          } else {
-            setLocation("/profile/" + user.id);
-          }
-        }
-      }
-    }
-  }, [isLoading, user, setLocation]);
-
+  // Login mutation
   const loginMutation = useMutation({
-    mutationFn: async (data: { username: string; password: string }) => {
+    mutationFn: async (data: LoginData) => {
       console.log('Attempting login...');
-      const response = await api.auth.login(data.username, data.password);
-      if (!response.token) {
-        throw new Error('No token received from server');
-      }
+      const response = await api.auth.login(data);
       localStorage.setItem("token", response.token);
-      console.log('Token found, checking auth status');
-      await refetch();
-      console.log('Login successful, redirecting...');
+      setLocation('/admin');
+      return response;
     },
-    onError: (error) => {
-      console.error('Login failed:', error);
-      localStorage.removeItem("token");
+    onSuccess: async (response) => {
+      console.log('Login successful, refreshing user data...');
+      queryClient.setQueryData(["auth"], response.user);
+    },
+    onError: (error: Error) => {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to login",
+        title: "Login failed",
+        description: error.message,
         variant: "destructive",
       });
     },
   });
 
+  // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      try {
-        await api.auth.logout();
-      } catch (error) {
-        console.error('Logout API call failed:', error);
-      } finally {
-        localStorage.removeItem("token");
-        queryClient.setQueryData(["auth"], null);
-        setLocation("/auth");
-      }
+      await api.auth.logout();
+      localStorage.removeItem("token");
+      queryClient.clear();
+    },
+    onSuccess: () => {
+      setLocation('/auth');
     },
   });
 
-  const value = {
-    user,
-    isLoading,
-    isError,
-    error,
-    login: loginMutation.mutateAsync,
-    logout: logoutMutation.mutateAsync,
-    isAdmin: user?.roles.some((role) => role.name.toUpperCase() === "ADMIN") ?? false,
-  };
+  // Email verification mutation
+  const verifyEmailMutation = useMutation({
+    mutationFn: async (token: string) => {
+      return api.auth.verifyEmail(token);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Email verified",
+        description: "Your email has been verified successfully.",
+      });
+      refetch();
+    },
+  });
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  // Password reset request mutation
+  const requestPasswordResetMutation = useMutation({
+    mutationFn: async (email: string) => {
+      return api.auth.requestPasswordReset(email);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Reset email sent",
+        description: "Check your email for password reset instructions.",
+      });
+    },
+  });
+
+  // Password reset mutation
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ token, password }: { token: string; password: string }) => {
+      return api.auth.resetPassword(token, password);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Password reset",
+        description: "Your password has been reset successfully.",
+      });
+      setLocation('/auth');
+    },
+  });
+
+  // Profile update mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: Partial<User>) => {
+      return api.auth.updateProfile(data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been updated successfully.",
+      });
+      refetch();
+    },
+  });
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isError,
+        error,
+        isAuthenticated: !!user,
+        login: loginMutation.mutateAsync,
+        logout: logoutMutation.mutateAsync,
+        verifyEmail: verifyEmailMutation.mutateAsync,
+        requestPasswordReset: requestPasswordResetMutation.mutateAsync,
+        resetPassword: (token: string, password: string) => 
+          resetPasswordMutation.mutateAsync({ token, password }),
+        updateProfile: updateProfileMutation.mutateAsync,
+        isAdmin: user?.role === 'ADMIN'
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

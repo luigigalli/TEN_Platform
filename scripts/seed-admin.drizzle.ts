@@ -67,7 +67,7 @@ async function seed() {
       .where(eq(users.username, 'admin'))
       .limit(1);
 
-    const password = ':-)Eco2024';
+    const password = 'Admin123!';
     console.log('Using password:', password);
     const salt = await bcrypt.genSalt(10);
     console.log('Generated salt:', salt);
@@ -79,13 +79,14 @@ async function seed() {
       const [newUser] = await db.insert(users)
         .values({
           username: 'admin',
-          email: 'admin@example.com',
+          email: 'admin@tenplatform.com',
           fname: 'Admin',
           lname: 'User',
           password: hashedPassword,
           status: 'active',
           type: 1,
-          role: 'admin'
+          role: 'admin',
+          isVerified: true
         })
         .returning();
       adminUser = newUser;
@@ -94,6 +95,8 @@ async function seed() {
       const [updatedUser] = await db.update(users)
         .set({
           password: hashedPassword,
+          email: 'admin@tenplatform.com',
+          isVerified: true,
           updatedAt: new Date()
         })
         .where(eq(users.id, existingUser.id))

@@ -1,15 +1,15 @@
 import express from "express";
-import { registerRoutes } from "./routes";
-import { config } from "./config";
-import { ServerError } from "./errors";
-import { initializeServer } from "./middleware/server-init";
-import { handleViteMiddleware, handleStaticFiles } from "./middleware/vite-handler";
+import { setupRoutes } from "./routes/index.js";
+import { config } from "./config.js";
+import { ServerError } from "./errors.js";
+import { initializeServer } from "./middleware/server-init.js";
+import { setupViteHandler } from "./middleware/vite-handler.js";
 import { type Server } from "http";
-import { env, isReplit, getExternalUrl } from "./config/environment";
-import { validateDeploymentEnvironment } from "./config/deployment-validator";
-import { setupSwaggerPaths } from "./config/swagger";
+import { env, isReplit, getExternalUrl } from "./config/environment.js";
+import { validateDeploymentEnvironment } from "./config/deployment-validator.js";
+import { setupSwaggerPaths } from "./config/swagger.js";
 import swaggerUi from 'swagger-ui-express';
-import { swaggerSpec } from "./config/swagger";
+import { swaggerSpec } from "./config/swagger.js";
 
 // Type definition for server instance
 interface ServerInstance {
@@ -77,13 +77,13 @@ process.on('SIGINT', async () => {
     serverInstance = { app, server };
 
     // Register API routes first
-    registerRoutes(app);
+    setupRoutes(app);
 
     // Set up environment-specific middleware after API routes
     if (config.env === 'development') {
-      await handleViteMiddleware(app, server);
+      await setupViteHandler(app, server);
     } else {
-      handleStaticFiles(app);
+      // handleStaticFiles(app);
     }
 
     // Add error handling middleware last

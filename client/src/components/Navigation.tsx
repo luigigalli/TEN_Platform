@@ -6,15 +6,10 @@ import {
 } from "@/components/ui/navigation-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useUser } from "../hooks/use-user";
-import type { SelectUser } from "@db/schema";
+import { useAuth } from "@/contexts/AuthContext";
 
-interface NavigationProps {
-  user: SelectUser;
-}
-
-export default function Navigation({ user }: NavigationProps) {
-  const { logout } = useUser();
+export default function Navigation() {
+  const { user, logout } = useAuth();
 
   // Get user initials for avatar fallback
   const getUserInitials = (name: string | undefined | null) => {
@@ -33,6 +28,11 @@ export default function Navigation({ user }: NavigationProps) {
       console.error('Logout failed:', error);
     }
   };
+
+  // If user is not loaded yet, don't render the navigation
+  if (!user) {
+    return null;
+  }
 
   return (
     <header className="border-b">
@@ -91,14 +91,14 @@ export default function Navigation({ user }: NavigationProps) {
                   <span className="flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer">
                     <Avatar>
                       <AvatarImage 
-                        src={user.avatar ?? undefined} 
-                        alt={`${user.username}'s profile picture`}
+                        src={undefined} 
+                        alt={`${user.firstName}'s profile picture`}
                       />
                       <AvatarFallback>
-                        {getUserInitials(user.fullName || user.username)}
+                        {getUserInitials(user.firstName + ' ' + user.lastName)}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{user.username}</span>
+                    <span className="text-sm font-medium">{user.firstName}</span>
                   </span>
                 </Link>
               </NavigationMenuItem>

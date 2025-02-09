@@ -18,10 +18,10 @@ export async function initializeServer(app: express.Application) {
 
   // CORS configuration
   const corsOptions = {
-    origin: isReplit ? true : 'http://localhost:5173',
+    origin: isReplit ? true : 'http://localhost:5176',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Cookie'],
+    allowedHeaders: ['Content-Type', 'Cookie', 'Authorization'],
     exposedHeaders: ['Set-Cookie']
   };
 

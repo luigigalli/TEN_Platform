@@ -185,27 +185,18 @@ async function sync() {
   console.log('\nStarting database sync...');
   const { source, target, mode } = getDatabaseUrls();
 
-  const sourceClient = postgres(source, {
+  const connectionOptions = {
     max: 1,
     idle_timeout: 120,
     connect_timeout: 120,
     ssl: { rejectUnauthorized: false },
     connection: {
       statement_timeout: 120000,
-      query_timeout: 120000
-    }
-  });
+    },
+  };
 
-  const targetClient = postgres(target, {
-    max: 1,
-    idle_timeout: 120,
-    connect_timeout: 120,
-    ssl: { rejectUnauthorized: false },
-    connection: {
-      statement_timeout: 120000,
-      query_timeout: 120000
-    }
-  });
+  const sourceClient = postgres(source, connectionOptions);
+  const targetClient = postgres(target, connectionOptions);
 
   const sourceDb = drizzle(sourceClient, { schema });
   const targetDb = drizzle(targetClient, { schema });
