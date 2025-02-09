@@ -42,7 +42,14 @@ function App() {
                   <AdminLayout>
                     <Switch>
                       <Route path="/admin" component={DashboardPage} />
-                      <Route path="/admin/users" component={UsersPage} />
+                      <Route
+                        path="/admin/users"
+                        element={
+                          <AdminLayout>
+                            <UsersPage />
+                          </AdminLayout>
+                        }
+                      />
                       <Route path="/admin/roles" component={RolesPage} />
                       <Route path="/admin/roles/new" component={RoleDetailsPage} />
                       <Route path="/admin/roles/:id" component={RoleDetailsPage} />

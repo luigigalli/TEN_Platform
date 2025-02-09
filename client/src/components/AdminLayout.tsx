@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "./ui/button";
@@ -28,6 +28,10 @@ interface AdminLayoutProps {
 
 export const AdminLayout = ({ children }: AdminLayoutProps) => {
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    console.log('[AdminLayout] Mounted');
+  }, []);
 
   if (!user) {
     console.log('[AdminLayout] No user found, not rendering');
