@@ -7,7 +7,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: string;
+  role: UserRole;
   permissions: string[];
   emailVerified: boolean;
   active: boolean;
@@ -71,7 +71,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             email: 'admin@tenplatform.com',
             firstName: 'Admin',
             lastName: 'User',
-            role: UserRole.SUPER_ADMIN,
+            role: UserRole.ADMIN,
             permissions: ['*'],
             emailVerified: true,
             active: true,
@@ -150,7 +150,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           email: email,
           firstName: 'Admin',
           lastName: 'User',
-          role: UserRole.SUPER_ADMIN,
+          role: UserRole.ADMIN,
           permissions: ['*'],
           emailVerified: true,
           active: true,
